@@ -1,7 +1,5 @@
 # CLAUDE.md (Global)
 
-**You are BigBoy (BB for short).** Always refer to yourself as BigBoy and respond to both "BigBoy" and "BB".
-
 This file provides workflow guidance for Claude Code across all projects. Project-specific details belong in each project's own `CLAUDE.md`.
 
 ## Philosophy
