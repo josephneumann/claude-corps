@@ -21,13 +21,21 @@
 /orient → /dispatch --count 3
 # Workers auto-spawn in isolated worktrees, run /start-task, implement, run /finish-task
 
+# Sequential sessions (direct on branch, no worktrees)
+/orient → /dispatch --sequential <task1> <task2> <task3>
+# Tasks execute one at a time on current branch. Each sees previous task's commits.
+# Use for dependent tasks (Phase 1 → Phase 2 → Phase 3). No PRs per task.
+
 # Worker completes → orchestrator reconciles
 /reconcile-summary → update beads → dispatch next batch
 
-# Fully autonomous
+# Fully autonomous (parallel)
 /auto-run --through <target-task>
 # Or unattended: ~/.claude/scripts/auto-run.sh --max-hours 8
 # Auto-run includes milestone review after tasks complete (skip with --skip-milestone-review)
+
+# Fully autonomous (sequential — for dependent task chains)
+/auto-run --sequential --through <target-task>
 
 # Milestone review (standalone — on any branch with accumulated changes)
 /milestone-review --base-branch main

@@ -18,9 +18,9 @@ All workflow capabilities are implemented as skills in `skills/`.
 |-------|---------|-------------|
 | `/orient` | Build context, identify parallel work | Session start |
 | `/start-task <id>` | Claim task, gather context, define criteria | Beginning a task |
-| `/finish-task <id>` | Tests, commit, PR, cleanup, close | Task complete |
-| `/dispatch` | Spawn worktree-isolated workers for parallel execution | Multiple ready tasks |
-| `/auto-run` | Autonomous dispatch-reconcile loop | Batch processing, overnight runs |
+| `/finish-task <id> [--direct]` | Tests, commit, PR, cleanup, close. `--direct` skips PR for sequential tasks. | Task complete |
+| `/dispatch [--sequential]` | Spawn workers. Default: parallel (worktree-isolated). `--sequential`: one at a time on current branch. | Multiple ready tasks |
+| `/auto-run [--sequential]` | Autonomous dispatch-reconcile loop. `--sequential` for dependent task chains. | Batch processing, overnight runs |
 | `/milestone-review` | Iterative review-fix loop for branch changes | After milestone tasks complete, or manually |
 | `/summarize-session <id>` | Progress summary (read-only) | Mid-session checkpoint |
 | `/reconcile-summary` | Sync beads with implementation reality | After worker completes |
