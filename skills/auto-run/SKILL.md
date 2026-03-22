@@ -18,6 +18,7 @@ Parse the following flags:
 - `--max-batches N` — Stop after N dispatch rounds (default: unlimited)
 - `--max-hours H` — Stop after H hours (default: unlimited)
 - `--max-concurrent N` — Max parallel workers per batch (default: 3)
+- `--sequential` — Execute tasks one at a time directly on the current branch (no worktrees, no PRs per task). Use for dependent/sequential tasks. Passes `--sequential` to `/dispatch`.
 - `--dry-run` — Show what would be dispatched without acting
 - `--resume` — Resume from checkpoint (skip orient)
 - `--skip-milestone-review` — Skip the milestone review phase after tasks complete
@@ -97,12 +98,15 @@ Auto-run scope: N tasks [list IDs]. Target: <task-id or epic-id or "all">
    - Otherwise report "No ready tasks in scope" and exit
 4. If ready tasks exist:
    - Calculate count = min(ready_count, max_concurrent)
-   - Call `/dispatch <specific-task-ids> --count <count> --no-plan --yes` via Skill tool, passing only in-scope task IDs
+   - **If `--sequential`:** Call `/dispatch --sequential <specific-task-ids> --no-plan --yes` via Skill tool. This dispatches tasks one at a time in foreground (no worktrees). The orchestrator blocks until each task completes.
+   - **If parallel (default):** Call `/dispatch <specific-task-ids> --count <count> --no-plan --yes` via Skill tool, passing only in-scope task IDs
 5. Update checkpoint: add dispatched tasks to `in_progress`, set `batch_number: 1`
 
 ## Section 3: Main Loop
 
-The loop is driven by background agent completion notifications. When a worker finishes (you are notified of its completion), process the result:
+**If `--sequential`:** The loop is synchronous. Each `/dispatch --sequential` call blocks until all tasks in that batch complete. After completion, proceed directly to Step B (Reconcile) → Step B.5 (Pull) → Step D (Dispatch Next). No background notifications needed.
+
+**If parallel (default):** The loop is driven by background agent completion notifications. When a worker finishes (you are notified of its completion), process the result:
 
 ### Step A — Identify Completion
 
@@ -141,7 +145,17 @@ Update checkpoint: move task from `in_progress` to `completed` (or `failed`).
 
 ### Step B.5 — Pull and Clean Up
 
-After reconciliation, prune completed worktrees and pull the worker's merged changes so subsequent dispatches see the latest code:
+After reconciliation, pull changes so subsequent dispatches see the latest code:
+
+**If `--sequential`:** No worktree prune needed (no worktrees created). Workers already committed directly to this branch, so `git pull` may not be necessary — but run it to sync with any remote changes:
+
+```bash
+git checkout -- .beads/issues.jsonl 2>/dev/null
+git pull origin $(git branch --show-current) --rebase 2>/dev/null || true
+bd sync --import-only 2>/dev/null
+```
+
+**If parallel (default):** Prune completed worktrees and pull the worker's merged changes:
 
 ```bash
 git worktree prune
@@ -162,7 +176,8 @@ bd sync --import-only 2>/dev/null
 3. Calculate `available_slots = max_concurrent - current_in_progress_count`
 
 **If in-scope ready tasks AND available_slots > 0:**
-- Call `/dispatch <specific-task-ids> --no-plan --yes` via Skill tool (pass only in-scope IDs, limited to available_slots)
+- **If `--sequential`:** Call `/dispatch --sequential <specific-task-ids> --no-plan --yes` via Skill tool. This blocks until all tasks complete.
+- **If parallel (default):** Call `/dispatch <specific-task-ids> --no-plan --yes` via Skill tool (pass only in-scope IDs, limited to available_slots)
 - Increment `batch_number` in checkpoint
 - Add dispatched tasks to `in_progress` in checkpoint
 
@@ -170,7 +185,7 @@ bd sync --import-only 2>/dev/null
 - If `--through` target task is now closed → all done → go to Section 4 (Completion)
 - If `--epic` and all epic children closed → all done → go to Section 4
 - If no in-scope ready AND no in-progress → all done → go to Section 4
-- If no in-scope ready BUT tasks still in-progress → wait for more completions (background agents will notify you when they finish)
+- If no in-scope ready BUT tasks still in-progress → wait for more completions (background agents will notify you when they finish; in `--sequential` mode this does not apply since dispatch blocks)
 
 ### Step E — Context Self-Monitoring
 
@@ -253,7 +268,8 @@ File: `docs/auto-run-checkpoint.json`
   "config": {
     "max_batches": null,
     "max_hours": null,
-    "max_concurrent": 3
+    "max_concurrent": 3,
+    "execution_mode": "parallel|sequential"
   },
   "scope": {
     "mode": "all|through|epic|only",

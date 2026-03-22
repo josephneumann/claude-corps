@@ -166,6 +166,11 @@ fi
 echo "Running on branch $(git branch --show-current)"
 ```
 
+**Sequential/direct mode exception:** If your dispatch prompt includes `EXECUTION_MODE: sequential`, you are running directly on the orchestrator's working branch (e.g., a milestone branch). In this case:
+- Do NOT create a task-specific branch — commit directly to the current branch
+- The current branch should already be a non-main working branch (dispatch validates this)
+- If you find yourself on `main` in sequential mode, STOP and report the error
+
 ## 8. Assess Task Size
 
 **Philosophy: Task-sized work** — Tasks should fit comfortably in context.

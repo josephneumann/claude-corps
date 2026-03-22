@@ -33,6 +33,7 @@
 Claude Code is powerful on its own. claude-corps makes it a **team**.
 
 - **Parallel execution** &mdash; Dispatch 3-5 Claude agents working simultaneously on different tasks, each in an isolated git worktree
+- **Sequential execution** &mdash; Dependent tasks run one at a time on the branch via `--sequential` &mdash; no worktree overhead, no merge conflicts
 - **Full lifecycle coverage** &mdash; From spec to dispatch to PR to code review, every step has a skill
 - **Autonomous multi-hour runs** &mdash; `/auto-run` chains dispatch, reconcile, and repeat until your entire backlog is done
 - **Human in the loop** &mdash; Agents execute, you decide. PRs are created, never auto-merged
@@ -91,7 +92,7 @@ graph LR
 | Phase | What happens |
 |-------|-------------|
 | **Plan** | `/product-review` challenges scope and approach (optional &mdash; use DESIGN mode for UI features). `/spec` refines ideas via Q&A, researches the codebase with parallel agents, writes a plan to `docs/plans/`, and decomposes into tasks with dependencies. `/spec --deepen` adds depth with targeted parallel research. |
-| **Execute** | `/orient` surveys the project. `/dispatch` spawns worktree-isolated workers &mdash; each gets a task, implements in its own filesystem, runs tests, creates a PR, and writes a session summary. `/auto-run` does this in a loop until all tasks are done. |
+| **Execute** | `/orient` surveys the project. `/dispatch` spawns workers &mdash; parallel (worktree-isolated, default) or sequential (`--sequential`, direct on branch). Each worker implements, tests, and writes a session summary. `/auto-run` does this in a loop until all tasks are done. |
 | **Review** | `/multi-review` runs parallel specialized code review. `/reconcile-summary` syncs worker output with the task board. |
 
 ---
@@ -114,14 +115,14 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 |-------|---------|
 | `/orient` | Survey project, identify parallel work streams |
 | `/start-task <id>` | Claim task, create branch, gather context |
-| `/finish-task <id>` | Tests, commit, PR, code review, browser verification for frontend changes, session summary, close |
+| `/finish-task <id> [--direct]` | Tests, commit, PR, code review, browser verification, session summary, close. `--direct` skips PR/review for sequential tasks. |
 
 ### Orchestration
 
 | Skill | Purpose |
 |-------|---------|
-| `/dispatch` | Spawn worktree-isolated workers for parallel execution |
-| `/auto-run` | Autonomous dispatch-reconcile loop for multi-hour runs |
+| `/dispatch [--sequential]` | Spawn workers: parallel (worktree-isolated, default) or sequential (direct on branch) |
+| `/auto-run [--sequential]` | Autonomous dispatch-reconcile loop. `--sequential` for dependent task chains. |
 | `/reconcile-summary` | Sync worker output with task board |
 | `/summarize-session <id>` | Mid-session progress checkpoint (read-only) |
 
@@ -151,11 +152,11 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/orient`** &mdash; Discovers project structure, reads CLAUDE.md/README/PROJECT_SPEC, analyzes task state, checks git health, outputs a structured orientation report with recommended parallel work streams. Always offers `/dispatch` as next action.
 
-**`/dispatch`** &mdash; Identifies ready tasks, generates context, and spawns workers as subagents with git worktree isolation. Each worker gets its own filesystem copy of the repo &mdash; no conflicts possible. Supports `--count N`, `--plan-first`, `--no-plan`, `--yes`, and custom per-task context.
+**`/dispatch`** &mdash; Identifies ready tasks, generates context, and spawns workers. Two modes: **parallel** (default) uses git worktree isolation for independent tasks, **sequential** (`--sequential`) executes tasks one at a time directly on the current branch for dependent tasks that need to see each other's changes. Supports `--count N`, `--sequential`, `--plan-first`, `--no-plan`, `--yes`, `--model`, and custom per-task context.
 
 **`/start-task <id>`** &mdash; Validates the task, claims it, creates a task branch for isolation, gathers project context, optionally runs research agents, defines acceptance criteria, and begins implementation.
 
-**`/finish-task <id>`** &mdash; Runs quality gates (tests must pass), commits changes, pushes to remote, creates a PR, runs `/multi-review` with auto-fix, closes the task, outputs a session summary. Tests must pass or the command stops.
+**`/finish-task <id> [--direct]`** &mdash; Runs quality gates (tests must pass), commits changes, pushes to remote. In default mode: creates a PR, runs `/multi-review` (skipped for milestone-branch PRs &mdash; review happens at milestone level), merges. With `--direct`: skips PR/review entirely (used by sequential dispatch). In both modes: closes the task and outputs a session summary. Merge conflicts in worktree mode trigger a fail-fast stop &mdash; no retry loops.
 
 **`/reconcile-summary`** &mdash; Auto-discovers unreconciled summaries in `docs/session_summaries/`, cross-references summary claims against PR/CI evidence before trusting them, analyzes spec divergences, updates affected tasks, creates new tasks for discovered work, closes obsoleted tasks. Supports `--yes` for autonomous operation.
 
@@ -183,11 +184,14 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 ## Autonomous Multi-Hour Orchestration
 
-`/auto-run` enables fully autonomous operation. It dispatches worktree-isolated workers, waits for completions (background agents notify on finish), reconciles results, dispatches newly unblocked tasks, and repeats. After all tasks complete, it runs a milestone review phase &mdash; an iterative review-fix loop on the accumulated branch changes that catches cross-cutting issues individual task reviews miss (skip with `--skip-milestone-review`).
+`/auto-run` enables fully autonomous operation. It dispatches workers, waits for completions, reconciles results, dispatches newly unblocked tasks, and repeats. Supports both parallel (worktree-isolated, default) and sequential (`--sequential`, direct on branch) modes. After all tasks complete, it runs a milestone review phase &mdash; an iterative review-fix loop on the accumulated branch changes (skip with `--skip-milestone-review`).
 
 ```bash
-# All ready tasks
+# All ready tasks (parallel)
 /auto-run
+
+# Sequential — for dependent task chains
+/auto-run --sequential --through Proj-xyz
 
 # Everything needed to complete a specific task (resolves dependency graph)
 /auto-run --through Proj-xyz
@@ -335,8 +339,8 @@ project-root/
 
 ## Principles
 
-1. **Parallel by default** &mdash; Multiple Claude sessions work simultaneously in isolated git worktrees.
-2. **Orchestrator + Workers** &mdash; One session coordinates, workers execute discrete tasks in their own worktrees and report back.
+1. **Parallel by default, sequential when needed** &mdash; Independent tasks run simultaneously in isolated git worktrees. Dependent tasks run sequentially on the branch (`--sequential`).
+2. **Orchestrator + Workers** &mdash; One session coordinates, workers execute discrete tasks and report back.
 3. **Task-sized work** &mdash; Big enough to be a meaningful atomic change, small enough to complete without exhausting context.
 4. **Bounded autonomy** &mdash; Clarify requirements first, then execute autonomously within those bounds.
 5. **Tests as the contract** &mdash; "Done" means tests pass. The code proves itself.
@@ -360,7 +364,7 @@ project-root/
 /finish-task Project-abc
 ```
 
-### Multi-Agent Parallel
+### Multi-Agent Parallel (independent tasks)
 
 ```bash
 /orient
@@ -370,11 +374,23 @@ project-root/
 /reconcile-summary
 ```
 
+### Sequential (dependent tasks)
+
+```bash
+git checkout milestone/m4
+/dispatch --sequential task-1 task-2 task-3
+# Tasks execute one at a time on the branch — each sees the previous task's commits
+# No worktrees, no PRs per task. Review at milestone level.
+```
+
 ### Fully Autonomous
 
 ```bash
-# Interactive
+# Interactive (parallel)
 /auto-run --through target-task-id
+
+# Interactive (sequential — for dependent chains)
+/auto-run --sequential --through target-task-id
 
 # Unattended (hours-long, restarts across context exhaustions)
 ~/.claude/scripts/auto-run.sh --max-hours 8
@@ -444,7 +460,11 @@ claude-corps uses a layered model: the `security-sentinel` AI agent handles busi
 
 ### Does this require Agent Teams?
 
-No. claude-corps uses subagent worktrees (`isolation: "worktree"` on the Agent tool) for parallel execution. No Agent Teams configuration needed. All skills work with standard Claude Code.
+No. claude-corps uses subagent worktrees (`isolation: "worktree"` on the Agent tool) for parallel execution and plain subagents (no isolation) for sequential execution. No Agent Teams configuration needed. All skills work with standard Claude Code.
+
+### When should I use `--sequential` vs default parallel?
+
+Use `--sequential` when tasks depend on each other (Phase 1 must complete before Phase 2 starts) or when tasks modify overlapping files. Use default parallel when tasks are independent. Sequential avoids merge conflicts and worktree overhead but runs one task at a time.
 
 ---
 

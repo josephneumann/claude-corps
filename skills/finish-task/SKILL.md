@@ -8,10 +8,22 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, Skill, AskUserQuestion, mcp_
 
 You are completing work on beads task `$ARGUMENTS`. Follow this checklist precisely. **Work is NOT complete until git push succeeds.**
 
+## 0. Parse Arguments
+
+Parse `$ARGUMENTS` to extract:
+- `task_id`: The beads task ID (everything before any flags)
+- `--direct`: Optional flag indicating direct/sequential mode (no PR, commit-only)
+
+Examples:
+- `/finish-task SD-0gf.1` → task_id = `SD-0gf.1`, direct = false
+- `/finish-task SD-0gf.1 --direct` → task_id = `SD-0gf.1`, direct = true
+
+**When `--direct` is set:** Steps 11 (Create PR), 11a (Code Review), and 12 (Merge PR) are skipped entirely. All other steps run normally. This mode is used by `/dispatch --sequential` for tasks that commit directly to a working branch without PR ceremony.
+
 ## 1. Verify Current State
 
 ```bash
-bd show $ARGUMENTS
+bd show <task_id>
 git status
 git log --oneline -5
 pwd
@@ -164,6 +176,8 @@ Confirm:
 
 ## 11. Create Pull Request
 
+**If `--direct` flag is set: SKIP steps 11, 11a, and 12 entirely. Jump to step 13.**
+
 Determine the PR base branch before creating the PR:
 
 ```bash
@@ -207,7 +221,18 @@ EOF
 
 ## 11a. Code Review and Auto-Fix
 
-Run automated code review:
+**Skip per-task review when PR targets a milestone branch.** Milestone PRs accumulate task-level changes; review happens once at the milestone level via `/milestone-review` before merging to main. This avoids 2-5 minutes of review overhead per task.
+
+```bash
+# Check what branch this PR targets
+PR_BASE=$(gh pr view --json baseRefName -q '.baseRefName' 2>/dev/null || echo "unknown")
+```
+
+**If PR base is a milestone branch** (starts with `milestone/`): skip `/multi-review`. Log: "Skipping per-task review — PR targets milestone branch. Review will run at milestone level."
+
+Proceed directly to the Merge Decision below.
+
+**If PR base is main (or unknown):** Run full code review:
 
 ```
 /multi-review
@@ -250,13 +275,17 @@ If multi-review deferred items as tasks, note them in the session summary.
 
 ### Merge Decision
 
-After code review completes:
+**If review was skipped (milestone PR):** Proceed directly to step 12.
+
+**If review ran (main PR):**
 
 "PR created: <URL>. Code review [passed / fixed N issues / deferred W items as tasks]. Would you like me to merge it?"
 
 If user approves, proceed to step 12. If user declines, leave the PR open for manual review and skip to step 13.
 
 ## 12. Merge PR and Cleanup
+
+**If `--direct` flag is set: SKIP this step. Jump to step 13.**
 
 Check the PR's base branch before merging:
 
@@ -266,7 +295,7 @@ BASE=$(gh pr view --json baseRefName -q '.baseRefName')
 
 **If base is "main"**: do NOT merge. Report the PR URL and skip to step 13. Milestone-to-main PRs are human-only.
 
-**If base is a milestone branch** (e.g., `milestone/m1`): proceed with merge.
+**If base is a milestone branch** (e.g., `milestone/m1`): proceed with merge. Use regular merge (not squash) to preserve commit granularity on the milestone branch. The milestone→main PR will squash later.
 
 ```bash
 BRANCH_NAME=$(git branch --show-current)
@@ -274,14 +303,29 @@ MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
 
 cd "$MAIN_REPO"
 
-# Merge PR and clean up branch
-gh pr merge --squash --delete-branch
+# Merge PR — regular merge to preserve commits on milestone branch
+gh pr merge --merge --delete-branch
 
 # Clean up completed worktrees, then pull merged changes
 git worktree prune
 git checkout -- .beads/issues.jsonl 2>/dev/null
 git pull
 bd sync --import-only 2>/dev/null
+```
+
+**FAIL-FAST on merge conflicts:** If `gh pr merge` fails due to merge conflicts, **STOP IMMEDIATELY**. Do NOT attempt cherry-pick, rebase, or any other merge strategy. Output this message and exit:
+
+```
+═══════════════════════════════════════════
+MERGE CONFLICT — DO NOT RETRY
+═══════════════════════════════════════════
+PR merge failed due to conflicts.
+
+Do NOT attempt: cherry-pick, rebase, manual merge, or re-dispatch.
+Report this to the orchestrator. Options:
+1. Re-dispatch this task with /dispatch --sequential (no worktree)
+2. Manually resolve conflicts on the target branch
+═══════════════════════════════════════════
 ```
 
 If `gh pr merge` fails with "already merged", just delete the branch manually:
@@ -515,5 +559,6 @@ TASK COMPLETE: $ARGUMENTS
 
 No spec divergences - implementation matched specification.
 Summary available at: <path to summary file>
+Mode: <PR flow / Direct (no PR)>
 ===============================================
 ```
