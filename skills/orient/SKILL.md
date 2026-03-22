@@ -476,6 +476,21 @@ Handle these gracefully:
 - **All epics same priority**: Show all as FOCUS. Add a note: "All epics are the same priority — consider differentiating with `bd update <id> --priority <N>`."
 - **Primary epic has no children**: Show it in FOCUS EPICS but note "No tasks decomposed yet — consider breaking down with `bd create --parent <epic-id>`."
 
+## Phase 4.5: Task Visualization
+
+If the task board has any tasks, generate an interactive HTML visualization as a companion artifact to this report.
+
+**Execution**: Follow the `/task-viz --no-open` steps — gather task data, build Mermaid DAG, generate HTML, write to `~/.agent/diagrams/task-board.html`. Do NOT open in browser.
+
+**Output**: After the orientation report, print:
+```
+Task board: ~/.agent/diagrams/task-board.html
+```
+
+**Skip conditions**:
+- No tasks exist → skip silently
+- `bd` CLI unavailable → skip silently
+
 ## Phase 5: Ready for Action
 
 After presenting the orientation report, **ALWAYS offer `/dispatch` as the primary action when there are 2+ ready tasks.**
