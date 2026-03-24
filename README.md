@@ -105,7 +105,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 | Skill | Purpose |
 |-------|---------|
-| `/product-review` | Product-taste review: EXPAND / HOLD / REDUCE / DESIGN modes |
+| `/product-review` | Product-taste review with interrogation mode, assumption mapping, and devil's advocate challenges. EXPAND / HOLD / REDUCE / DESIGN modes |
 | `/spec` | Research, plan, decompose into tasks with dependencies |
 | `/spec --deepen` | Enhance an existing plan with parallel research |
 
@@ -142,7 +142,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 ### Planning Skills
 
-**`/product-review`** &mdash; Product-taste review that challenges scope and approach before committing engineering effort. Four modes: EXPAND (dream big), HOLD (maximum rigor), REDUCE (strip to essentials), DESIGN (UX-first &mdash; user journeys, interaction patterns, responsive strategy). Run before `/spec` or standalone.
+**`/product-review`** &mdash; Product-taste review that challenges scope and approach before committing engineering effort. Interrogation mode provides recommended answers for every question (grill-me style). Includes status quo analysis, assumption mapping across Value/Usability/Viability/Feasibility with risk prioritization, devil's advocate challenges (steel-man opposition, kill criteria), and alternatives analysis. Four modes: EXPAND (dream big), HOLD (maximum rigor), REDUCE (strip to essentials), DESIGN (UX-first &mdash; user journeys, interaction patterns, responsive strategy). Run before `/spec` or standalone.
 
 **`/spec`** &mdash; Interactive refinement (Phase 0) moves from a vague idea to clear requirements. Runs parallel research agents (repo-research-analyst, spec-flow-analyzer, and conditionally best-practices-researcher and framework-docs-researcher). Writes plan to `docs/plans/`, then decomposes into tasks via `bd create --parent` (containment) and `bd dep add` (execution ordering).
 
