@@ -1,17 +1,14 @@
 # Workflow Cheatsheet
 
 ```bash
-# Plan a new project (Phase 2.5 eng review runs automatically in /spec)
+# Plan a new project (review runs automatically for all plans in Phase 2.5)
 /spec → /orient → /dispatch
 
-# Plan with full-depth interactive review
-/spec → /plan-eng-review → /orient → /dispatch
+# Plan a UI feature (product review explores scope before spec)
+/product-review DESIGN → /spec → /orient → /dispatch
 
-# Plan a UI feature (with design review)
-/product-review DESIGN → /spec → /plan-design-review → /orient → /dispatch
-
-# Standalone reviews on existing plans
-/plan-eng-review              # Full interactive engineering review
+# Deep-dive reviews on existing plans (standalone — for extra depth beyond Phase 2.5)
+/plan-eng-review              # Full interactive engineering review (4 sections)
 /plan-design-review           # Full 7-pass scored design review
 
 # Single session
