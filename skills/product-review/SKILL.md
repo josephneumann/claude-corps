@@ -1,6 +1,6 @@
 ---
 name: product-review
-description: "Product-taste review that challenges 'are we building the right thing?' Four modes: EXPAND (dream big), HOLD (maximum rigor), REDUCE (strip to essentials), DESIGN (UX-first). Run before /spec or standalone. Use DESIGN mode for UI-heavy features."
+description: "Product-taste review that challenges 'are we building the right thing?' Interrogation mode with recommended answers, assumption mapping (V/U/Vi/F), devil's advocate challenges, and alternatives analysis. Four modes: EXPAND / HOLD / REDUCE / DESIGN. Run before /spec or standalone."
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
 
@@ -11,6 +11,8 @@ A product-taste review skill. Challenges whether you're building the right thing
 **Priority hierarchy**: Step 0 > Error Map > Failure Modes > Architecture > Everything else.
 
 **Tone**: Opinionated. Direct. Not a rubber stamp. If the plan is wrong, say so.
+
+**Interrogation mode**: Don't just analyze — interrogate. For every question you ask, provide your **recommended answer** so the user can react rather than generate from scratch. If a question can be answered by reading the codebase, read instead of asking. Track assumptions surfaced throughout the review as **verified** or **unverified** — these feed into the Assumption Map (Step 0A¾).
 
 ---
 
@@ -41,6 +43,8 @@ This step runs FIRST, before any review sections. It determines whether the work
 
 **Solution Bias Check** — Read the proposal. Does it describe HOW (tech choices, APIs, UI patterns) before establishing WHAT (user need) and WHY (evidence)? If yes, flag it: "This is solution-first. Let's establish the problem before designing the fix." Rewrite the framing as a problem statement before continuing.
 
+**Status Quo Check** — Who benefits from the current state? Who suffers from it? If the current state has beneficiaries (a team, a workflow, a power structure), the proposal faces resistance that technical merit alone won't overcome. Surface this explicitly — it often reveals organizational inertia masquerading as technical constraints.
+
 **Jobs-to-Be-Done** — Articulate the three user jobs this initiative serves:
 
 ```
@@ -63,6 +67,9 @@ Then ask and answer explicitly:
 - What are we NOT building by building this? Is that tradeoff explicit?
 - Can agents perform this action too, or is this UI-only? If UI-only, why?
 - What's the agent story? API/tool parity for every user-facing capability.
+- What's the strongest argument AGAINST this approach? (Steel-man the opposition, don't straw-man it.)
+- What must be true for this to succeed that isn't proven yet?
+- Under what conditions should we abandon this mid-build? (Define the kill switch.)
 
 ### 0A½. Desirability-Viability-Feasibility Gate
 
@@ -84,6 +91,24 @@ Feasibility    | 🟢/🟡/🔴 | Can we build it? Technical constraints? Depend
 - C) Kill the initiative — it's not ready
 
 Do NOT proceed past this step until all axes are 🟡 or 🟢.
+
+### 0A¾. Assumption Map
+
+Decompose the proposal into its underlying assumptions. For each, classify and assess:
+
+```
+ASSUMPTION                    | CATEGORY | EVIDENCE         | RISK | IMPACT
+------------------------------|----------|------------------|------|-------
+[what we're assuming is true] | V/U/Vi/F | strong/weak/none | H/M/L| H/M/L
+```
+
+Categories: **V**alue (users want this), **U**sability (users can use this), **Vi**ability (business can sustain this), **F**easibility (we can build this).
+
+Include assumptions surfaced during the Premise Challenge — both verified and unverified.
+
+Rank by Risk × Impact. The top 3 become **"must-validate-before-building"** gates that carry forward to `/spec` as experiment requirements.
+
+Any assumption with Evidence=none AND Risk=H is a **CRITICAL GAP** — surface via `AskUserQuestion` before continuing.
 
 ### 0B. Existing Code Leverage
 
@@ -113,6 +138,8 @@ Gap: ___               Gap: ___
 ```
 
 Does this plan move toward the 12-month ideal, or sideways?
+
+**Alternatives Check** — List 2-3 alternative approaches that could achieve the same 12-month ideal. For each: one sentence describing the approach, relative effort (lower/same/higher than current plan), and its key risk. Position the current proposal explicitly among these alternatives. If you can't articulate why this approach beats two alternatives, the investment isn't justified — surface via `AskUserQuestion`.
 
 ### 0D. Mode-Specific Analysis
 
@@ -343,8 +370,9 @@ SECTION                  | FINDINGS | CRITICAL GAPS | QUESTIONS RESOLVED
 -------------------------|----------|---------------|-------------------
 0A. Problem & Jobs       |          |               |
 0A½. DVF Gate            | D:🟢/🟡 V:🟢/🟡 F:🟢/🟡 |       |
+0A¾. Assumption Map      |          |               |
 0B. Existing Leverage    |          |               |
-0C. Dream State          |          |               |
+0C. Dream State + Alts   |          |               |
 0D. Mode Analysis        |          |               |
 0E. Temporal             |          |               |
 0F. Mode: [SELECTED]     |          |               |
@@ -370,6 +398,22 @@ Social      | [from 0A]                            | ✅/⚠️
 ```
 
 **DVF Status:** D:🟢/🟡 V:🟢/🟡 F:🟢/🟡
+
+**Assumption Map** (top risks carry forward as experiment requirements):
+```
+ASSUMPTION      | CATEGORY | EVIDENCE | RISK | IMPACT | STATUS
+----------------|----------|----------|------|--------|--------
+                | V/U/Vi/F |          | H/M/L| H/M/L | verified/unverified
+```
+
+**Alternatives Considered:**
+```
+APPROACH                 | EFFORT   | KEY RISK          | CHOSEN?
+-------------------------|----------|-------------------|--------
+[current proposal]       |          |                   | ✅ because: ___
+[alternative 1]          |          |                   | ❌ because: ___
+[alternative 2]          |          |                   | ❌ because: ___
+```
 
 **Kano Tiers** (if EXPAND or REDUCE):
 ```

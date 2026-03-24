@@ -6,7 +6,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 
 | Skill | Purpose | When to Use |
 |-------|---------|-------------|
-| `/product-review` | Product-taste review: EXPAND / HOLD / REDUCE / DESIGN modes | Before `/spec` for greenfield features, or standalone. Use DESIGN for UI-heavy features. |
+| `/product-review` | Product-taste review with interrogation mode, assumption mapping (V/U/Vi/F), devil's advocate challenges, and alternatives analysis. EXPAND / HOLD / REDUCE / DESIGN modes | Before `/spec` for greenfield features, or standalone. Use DESIGN for UI-heavy features. |
 | `/spec` | Research, plan, decompose into tasks | New idea, feature description, or goal |
 | `/spec --deepen` | Enhance plan with parallel research agents | Existing plan needs more depth |
 | `/plan-eng-review` | Interactive engineering plan review: architecture, code quality, tests, performance. One issue per question. | Core checks (scope, tests, failure modes) run automatically in `/spec` Phase 2.5. Use standalone for full-depth deep-dive on any plan. |
