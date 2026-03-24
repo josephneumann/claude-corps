@@ -301,36 +301,57 @@ Never silently default. Surface these so implementers know where ambiguity lives
 
 ### Phase 2.5: Plan Review
 
-Review the plan through engineering and design lenses before decomposition.
-**Skip for MINIMAL plans.** For STANDARD and COMPREHENSIVE, this is mandatory.
+Review the plan through engineering and design lenses before decomposition. **Runs for ALL plans — including MINIMAL.** There is no option to skip this phase. Individual issues can be deferred (logged as unresolved), but the checks themselves always execute.
 
-**Depth scales with plan level:**
+**Core checks (always run, all plan levels):**
 
-**STANDARD plans — Focused review:**
-- Task general-purpose: "Read skills/plan-eng-review/SKILL.md for cognitive patterns and review methodology. Review the plan at [plan_path]. Return: top 5 engineering concerns ranked by severity, test coverage gaps, architecture diagram assessment, failure mode completeness, and any critical gaps (Silent + no test + no handling)."
-- If plan has UI scope, also Task general-purpose: "Read skills/plan-design-review/SKILL.md for the design passes and cognitive patterns. Review the plan at [plan_path]. Return 0-10 score for: Interaction State Coverage, AI Slop Risk, Responsive & Accessibility. Flag specific gaps."
-- Incorporate agent findings into the plan document.
-- If any CRITICAL GAP found, surface via AskUserQuestion before proceeding.
-- Amend Plan Review Summary with review results.
+1. **Scope Challenge** (from `skills/plan-eng-review/SKILL.md` Step 0):
+   - What existing code already solves each sub-problem?
+   - What is the minimum set of changes that achieves the goal?
+   - Complexity check: >8 files or >2 new classes/services → flag.
+   - If complexity triggers: AskUserQuestion recommending scope reduction. Explain what's overbuilt, propose minimal version. Once resolved, move on — do not revisit scope.
 
-**COMPREHENSIVE plans — Full interactive review:**
+2. **Test Diagram** (from `skills/plan-eng-review/SKILL.md` Section 3):
+   - If plan has test diagram: validate it covers all new codepaths/flows.
+   - If plan lacks test diagram: produce one. Map every new codepath to required test type (unit/integration/e2e), happy path, failure path, edge case.
+   - AskUserQuestion per uncovered codepath.
+   - Amend the plan with test diagram.
 
-Run the engineering review inline. Apply cognitive patterns from `skills/plan-eng-review/SKILL.md` throughout.
+3. **Failure Modes** (from `skills/plan-eng-review/SKILL.md`):
+   - If plan has failure mode table: validate completeness.
+   - If plan lacks failure modes: produce the table — for each new codepath, one realistic failure, whether a test covers it, whether error handling exists, whether user sees it or it's silent.
+   - **CRITICAL GAP** = Silent + no test + no handling. AskUserQuestion per critical gap — these must be addressed.
+   - Amend the plan with failure modes.
 
-1. **Architecture review** — dependency graph, data flow, scaling, security. Production failure scenario per new codepath. ASCII diagram validation.
+**UI checks (if plan includes Interaction States section or otherwise has UI scope):**
+
+4. **Interaction State Coverage** (from `skills/plan-design-review/SKILL.md` Pass 2):
+   - Rate 0-10. If below 8: add missing loading/empty/error/success/partial states.
+   - For each state: describe what the user SEES, not backend behavior.
+   - AskUserQuestion per issue. Amend the plan.
+
+5. **AI Slop Risk** (from `skills/plan-design-review/SKILL.md` Pass 4):
+   - Rate 0-10. If below 8: rewrite vague descriptions ("clean modern UI", "card grid", "dashboard with widgets") with specific design decisions.
+   - AskUserQuestion per issue. Amend the plan.
+
+**Additional review for COMPREHENSIVE plans:**
+
+Run the engineering review inline. Apply cognitive patterns from `skills/plan-eng-review/SKILL.md`:
+
+6. **Architecture review** — dependency graph, data flow, scaling, security. Production failure scenario per new codepath. ASCII diagram validation.
    STOP per issue. AskUserQuestion with options + recommendation + WHY.
-2. **Code quality review** — organization, DRY, error handling gaps, edge cases.
+7. **Code quality review** — organization, DRY, error handling gaps, edge cases.
    STOP per issue.
-3. **Test review** — verify test diagram covers all new codepaths/flows.
-   STOP per issue.
-4. **Performance review** — N+1, memory, caching, slow paths.
+8. **Performance review** — N+1, memory, caching, slow paths.
    STOP per issue.
 
-If plan has UI scope, also run design review passes (apply cognitive patterns from `skills/plan-design-review/SKILL.md`):
+If plan has UI scope, also run remaining design passes (from `skills/plan-design-review/SKILL.md`):
 
-5. **Interaction State Coverage** — rate 0-10, fix gaps in the plan
-6. **AI Slop Risk** — rate 0-10, rewrite vague descriptions with specific decisions
-7. **Responsive & Accessibility** — rate 0-10, add per-viewport specs
+9. **Information Architecture** (Pass 1) — rate 0-10, fix to 10
+10. **User Journey & Emotional Arc** (Pass 3) — rate 0-10, fix to 10
+11. **Design System Alignment** (Pass 5) — rate 0-10, fix to 10
+12. **Responsive & Accessibility** (Pass 6) — rate 0-10, fix to 10
+13. **Unresolved Design Decisions** (Pass 7) — surface ambiguities
 
 Key cognitive patterns to apply throughout:
 - **Boring by default** — flag novel technology. Is this spending an innovation token wisely?
@@ -421,32 +442,32 @@ Do NOT present the post-plan menu below. Proceed directly to implementation.
 
 **If `decomposed = true`:**
 
+Engineering and design reviews ran in Phase 2.5. For a deeper dive, run `/plan-eng-review` or `/plan-design-review` standalone.
+
 **Question:** "Plan created, reviewed, and decomposed into tasks. What next?"
 
 **Options:**
 1. **Deepen the plan** — Run `--deepen` mode for parallel research enhancement
-2. **Full engineering review** — Run `/plan-eng-review` for interactive issue-by-issue walkthrough
-3. **Full design review** — Run `/plan-design-review` for 7-pass scored review (only suggest if plan has UI scope)
-4. **Review the plan** — Run `/multi-review` for specialized feedback
-5. **Dispatch workers** — Run `/dispatch` to start parallel execution
-6. **Work solo** — Pick a task with `/start-task`
-7. **Create GitHub issue** — `gh issue create --title "<type>: <title>" --body-file <plan_path>`
-8. **Simplify** — Reduce detail level
-9. **Execute now** — Skip dispatch, implement the plan directly in this session
+2. **Review the plan** — Run `/multi-review` for specialized feedback
+3. **Dispatch workers** — Run `/dispatch` to start parallel execution
+4. **Work solo** — Pick a task with `/start-task`
+5. **Create GitHub issue** — `gh issue create --title "<type>: <title>" --body-file <plan_path>`
+6. **Simplify** — Reduce detail level
+7. **Execute now** — Skip dispatch, implement the plan directly in this session
 
 **If `decomposed = false`:**
+
+Engineering and design reviews ran in Phase 2.5. For a deeper dive, run `/plan-eng-review` or `/plan-design-review` standalone.
 
 **Question:** "Plan created and reviewed. What next?"
 
 **Options:**
 1. **Deepen the plan** — Run `--deepen` mode for parallel research enhancement
-2. **Full engineering review** — Run `/plan-eng-review` for interactive issue-by-issue walkthrough
-3. **Full design review** — Run `/plan-design-review` for 7-pass scored review (only suggest if plan has UI scope)
-4. **Review the plan** — Run `/multi-review` for specialized feedback
-5. **Create GitHub issue** — `gh issue create --title "<type>: <title>" --body-file <plan_path>`
-6. **Simplify** — Reduce detail level
-7. **Decompose now** — Create beads tasks from this plan
-8. **Execute now** — Implement the plan directly in this session
+2. **Review the plan** — Run `/multi-review` for specialized feedback
+3. **Create GitHub issue** — `gh issue create --title "<type>: <title>" --body-file <plan_path>`
+4. **Simplify** — Reduce detail level
+5. **Decompose now** — Create beads tasks from this plan
+6. **Execute now** — Implement the plan directly in this session
 
 ---
 
@@ -526,18 +547,18 @@ bd list 2>/dev/null
 
 Use **AskUserQuestion**:
 
+For a deeper review after deepening, run `/plan-eng-review` or `/plan-design-review` standalone.
+
 **If beads tasks exist:**
 
 **Question:** "Plan deepened. What next?"
 
 **Options:**
 1. **View diff** — `git diff [plan_path]`
-2. **Full engineering review** — Run `/plan-eng-review` for interactive walkthrough
-3. **Full design review** — Run `/plan-design-review` for scored review (only suggest if UI scope)
-4. **Run `/multi-review`** — Feedback from reviewers
-5. **Run `/dispatch`** — Spawn parallel workers
-6. **Run `/start-task <id>`** — Begin a specific task
-7. **Deepen further** — Another round on specific sections
+2. **Run `/multi-review`** — Feedback from reviewers
+3. **Run `/dispatch`** — Spawn parallel workers
+4. **Run `/start-task <id>`** — Begin a specific task
+5. **Deepen further** — Another round on specific sections
 
 **If no beads tasks exist:**
 
@@ -545,8 +566,6 @@ Use **AskUserQuestion**:
 
 **Options:**
 1. **View diff** — `git diff [plan_path]`
-2. **Full engineering review** — Run `/plan-eng-review` for interactive walkthrough
-3. **Full design review** — Run `/plan-design-review` for scored review (only suggest if UI scope)
-4. **Run `/multi-review`** — Feedback from reviewers
-5. **Decompose into tasks** — Create beads tasks from this plan
-6. **Deepen further** — Another round on specific sections
+2. **Run `/multi-review`** — Feedback from reviewers
+3. **Decompose into tasks** — Create beads tasks from this plan
+4. **Deepen further** — Another round on specific sections
