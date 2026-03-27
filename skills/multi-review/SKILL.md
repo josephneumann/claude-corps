@@ -59,7 +59,7 @@ Categorize the changes to select appropriate reviewers:
 | Architecture | new files, interface, refactor, module | architecture-strategist |
 | Patterns | any code change | pattern-recognition-specialist |
 | Complexity | any code change | code-simplicity-reviewer |
-| Agent/Tool systems | agent definitions, skills, prompts, tool configs, UI actions, API endpoints, forms, routes | agent-native-reviewer |
+| Agent/Tool systems | agent definitions, skills, prompts, tool configs, UI actions, API endpoints, forms, routes, new entity models, system prompt templates, context injection code | agent-native-reviewer |
 | Database migrations | db/migrate/*, schema changes, data backfills | data-integrity-guardian, data-migration-expert |
 | UX/Interaction | components, forms, modals, flows, navigation | ux-reviewer |
 | Frontend Perf  | images, imports, dependencies, animations     | frontend-performance-reviewer |
@@ -75,6 +75,7 @@ Map changed files to framework reviewers. A framework reviewer is activated when
 | `*.css`, `tailwind.*`, `components/ui/**` | `tailwind` | `tailwind-reviewer` |
 | `*.py`, `alembic/**` | `python-backend` | `python-backend-reviewer` |
 | `routes/**`, `api/**`, `endpoints/**`, `controllers/**` | `api` | `api-security-reviewer` |
+| `**/tools/**`, `**/agents/**`, `**/prompts/**`, `**/skills/**`, `*.tool.*` | `agent-native` | `agent-native-reviewer` |
 | `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `components/**`, `pages/**` | `ux` | `ux-reviewer` |
 | `*.tsx`, `*.jsx`, `*.css`, `next.config.*`, `package.json` | `frontend-perf` | `frontend-performance-reviewer` |
 
@@ -94,7 +95,7 @@ Map changed files to framework reviewers. A framework reviewer is activated when
 - `security-sentinel` — if auth, input handling, secrets, or user data
 - `performance-oracle` — if database queries, loops, caching, or data operations
 - `architecture-strategist` — if structural changes, new modules, or interface changes
-- `agent-native-reviewer` — if agent definitions, skill files, system prompts, tool configurations, new UI actions/views, API endpoints, forms, or routes (any user-facing capability that should have agent parity)
+- `agent-native-reviewer` — if agent definitions, skill files, system prompts, tool configurations, new UI actions/views, API endpoints, forms, routes, new entity models/schemas, or context injection code (any change that adds user-facing capabilities, new data entities, or modifies agent context)
 - `data-integrity-guardian` — if database migrations, schema changes, or data model modifications
 - `data-migration-expert` — if data backfills, ID mappings, enum conversions, or column renames
 

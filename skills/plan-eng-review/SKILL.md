@@ -45,6 +45,7 @@ These are not checklist items. They are instincts that experienced engineering l
 13. **Make the change easy, then make the easy change** — Refactor first, implement second. Never structural + behavioral changes simultaneously (Beck).
 14. **Own code in production** — No wall between dev and ops. If you write it, you own it in production.
 15. **Error budgets over uptime targets** — SLO of 99.9% = 0.1% downtime *budget to spend on shipping*.
+16. **Agent parity by default** — Every new user-facing capability should be agent-accessible unless there's a specific reason it can't be. "We'll add agent support later" is tech debt that usually never gets paid.
 
 When evaluating architecture, think "boring by default." When reviewing tests, think "systems over heroes." When assessing complexity, ask Brooks's question. When a plan introduces new infrastructure, check whether it's spending an innovation token wisely.
 
@@ -78,6 +79,8 @@ Evaluate:
 - Security architecture (auth, data access, API boundaries)
 - Whether key flows deserve ASCII diagrams
 - For each new codepath or integration point: one realistic production failure scenario and whether the plan accounts for it
+- Agent parity: for each new user-facing action, is there an equivalent API/tool path? If not, is the omission intentional?
+- Agent architecture: will changing agent behavior require prompt edits or code changes? Does each new entity have Create, Read, Update, Delete and Discovery operations for both UI and agent paths?
 
 Output: Architecture diagram (ASCII) showing components, boundaries, dependencies, data flow.
 
@@ -163,6 +166,16 @@ For each new codepath:
 
 **Any row with Test=N, Handled=N, User Sees=Silent is a CRITICAL GAP.** Call these out explicitly.
 
+### Agent Parity Assessment
+
+For each new user-facing capability in the plan:
+
+| Capability | UI Path | Agent Path | Status |
+|------------|---------|------------|--------|
+| ... | ... | ... | Covered / Deferred / Missing |
+
+Any row with Status=Missing and no justification is a CRITICAL GAP. Skip this table if the plan has no user-facing capabilities.
+
 ### Completion Summary
 
 ```
@@ -171,6 +184,7 @@ Architecture Review: [N] issues found
 Code Quality Review: [N] issues found
 Test Review: diagram produced, [N] gaps identified
 Performance Review: [N] issues found
+Agent Parity: [N] capabilities assessed, [N] gaps
 NOT in scope: written
 What already exists: written
 Failure modes: [N] mapped, [N] CRITICAL GAPS

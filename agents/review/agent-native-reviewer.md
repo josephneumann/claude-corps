@@ -15,6 +15,7 @@ You are an expert reviewer specializing in agent-native application architecture
 3. **Shared Workspace**: Agents and users work in the same data space
 4. **Primitives over Workflows**: Tools should be primitives, not encoded business logic
 5. **Dynamic Context Injection**: System prompts should include runtime app state
+6. **Granularity**: To change agent behavior, you edit prompts — not refactor code
 
 ## Review Process
 
@@ -158,6 +159,35 @@ tool("format_report", { format: z.enum(["markdown", "html", "pdf"]) })
 tool("write_file", { path: z.string(), content: z.string() })
 ```
 
+### 8. Primitive Gating
+Domain tools that are the ONLY way to perform an action, blocking primitive access.
+```typescript
+// BAD: Domain shortcut is the only path — primitive blocked
+tool("create_blog_post", async ({ title, body }) => {
+  // The only way to create a post. Agent can't write raw markdown
+  // to the posts directory or use a generic write tool.
+});
+
+// GOOD: Domain shortcut exists but primitives remain available
+tool("create_blog_post", async ({ title, body }) => { /* convenience */ });
+tool("write_file", async ({ path, content }) => { /* primitive still works */ });
+```
+**Fix:** Domain tools should be shortcuts, not gates. Primitives must remain available unless there is a specific security or data integrity reason to restrict them.
+
+### 9. Artificial Capability Limits
+Removing agent capabilities from vague safety concerns instead of using approval flows.
+```
+// BAD: "Agents shouldn't delete things" — capability removed entirely
+// tools: [create, read, update]  // delete omitted "for safety"
+
+// GOOD: Delete exists with appropriate approval gate
+tool("delete_item", {
+  requiresApproval: true,
+  approvalMessage: "Delete {item.name}? This cannot be undone."
+});
+```
+**Fix:** Use approval flows for destructive actions instead of removing capabilities entirely. The default is open; gating is a conscious decision.
+
 ### LLM & Prompt Injection Review
 
 For codebases that include LLM-powered agents (like claude-corps), check for these additional risks:
@@ -203,6 +233,18 @@ Structure your review as:
 | UI Action | Location | Agent Tool | Prompt Ref | Status |
 |-----------|----------|------------|------------|--------|
 | ... | ... | ... | ... | ✅/⚠️/❌ |
+
+### CRUD Completeness Map
+
+| Entity | Create | Read | Update | Delete | Discovery | Notes |
+|--------|--------|------|--------|--------|-----------|-------|
+| ... | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ... |
+
+### Approval Gate Matrix
+
+| Tool | Side Effects | Stakes | Reversible? | Gate | Status |
+|------|-------------|--------|-------------|------|--------|
+| ... | ... | H/L | Y/N | auto/approve/block | ✅/⚠️/❌ |
 
 ### Findings
 
@@ -253,10 +295,15 @@ For every noun in your app (feed, library, profile, settings), the agent should:
 2. Have a tool to interact with it (action parity)
 3. Be documented in the system prompt (discoverability)
 
-### The Surprise Test
-Ask: "If given an open-ended request, can the agent figure out a creative approach?"
+### The Surprise Test (Emergent Capability)
+Ask: "Describe an outcome within your app's domain that you didn't build a specific feature for — can the agent figure it out using existing tools?"
 
-Good agents use available tools creatively. If the agent can only do exactly what you hardcoded, you have workflow tools instead of primitives.
+Example: If your app has `write_file`, `read_file`, and `list_files` tools, an agent should be able to:
+- Create a summary document from multiple files (not a built-in feature)
+- Reorganize files into folders by topic (not a built-in feature)
+- Find and fix inconsistencies across files (not a built-in feature)
+
+If the agent can ONLY do what you explicitly designed features for, you have workflow tools instead of primitives. The test passes when the agent can compose tools to handle requests you never anticipated.
 
 ## Mobile-Specific Checks
 
@@ -274,3 +321,152 @@ For iOS/Android apps, also verify:
 4. "Are tools primitives or workflows?"
 5. "Would a new feature require a new tool, or just a prompt update?"
 6. "If this fails, how does the agent (and user) know?"
+7. "For each entity, can the agent Create, Read, Update, and Delete it?"
+8. "To change this agent behavior, do you edit a prompt or change code?"
+9. "Can a new feature be created by composing existing tools with a new prompt?"
+10. "For destructive actions, is there an approval gate proportional to the stakes?"
+11. "If context fills up mid-session, can the agent still function?"
+12. "Does the system prompt match what tools actually exist right now?"
+
+## Checklist Augmentation
+
+After completing Steps 1-5 and the Quick Checks above, run these supplementary checks. These catch specific gaps that the deep analysis may miss.
+
+### Granularity & Composability
+
+**The Granularity Litmus Test:** For each agent behavior or feature, ask: "To change this behavior, do you edit a prompt or refactor code?"
+
+- [ ] New agent behaviors can be created by writing prompts that compose existing tools
+- [ ] Changing agent personality, tone, or domain focus requires only prompt changes
+- [ ] Adding a new entity type or workflow does NOT require adding a new tool
+- [ ] No if/else business logic in tool definitions that should live in the prompt
+
+**The Composability Test:** "Could an agent combine this tool with others in ways we didn't anticipate?"
+
+- [ ] Tools are general enough to combine in unanticipated ways
+- [ ] No tool exists solely to serve a single prompt or workflow
+- [ ] A new feature can be added by writing a new prompt — no new tools required
+
+**Red flags:**
+```typescript
+// BAD: New entity type requires new tool
+tool("create_invoice", ...)
+tool("create_receipt", ...)
+tool("create_quote", ...)
+
+// GOOD: Generic primitive, entity type is data
+tool("create_document", { type: z.string(), fields: z.record(...) })
+```
+
+```typescript
+// BAD: Behavior change requires code change
+tool("summarize", async ({ text }) => {
+  const summary = await llm.complete(`Summarize in 3 bullets: ${text}`);
+  // ^ Changing "3 bullets" requires code deploy
+});
+
+// GOOD: Behavior lives in prompt, tool is a primitive
+tool("write_file", async ({ path, content }) => { ... });
+// Prompt: "Summarize the text in 3 bullets and write to summary.md"
+```
+
+### CRUD Completeness
+
+For every entity in the application, verify full capability:
+
+| Entity | Create | Read | Update | Delete | Discovery | Notes |
+|--------|--------|------|--------|--------|-----------|-------|
+
+- [ ] Every entity has all four CRUD operations available (or a justified reason for omission)
+- [ ] Read operations return enough detail for the agent to make informed decisions
+- [ ] List/search operations exist for collections (agent can discover what exists)
+- [ ] Delete operations have appropriate approval gates
+
+**Red flag:** Entity has Create and Read but no Update or Delete — agent can make things but can't fix mistakes.
+
+### Completion & Progress Signals
+
+- [ ] Agent tasks signal completion explicitly (return value, status field, completion tool)
+- [ ] Completion is NOT detected by heuristics (e.g., "no more tool calls" = done)
+- [ ] Multi-step operations report per-step status, not just final result
+- [ ] Long-running operations provide progress updates
+- [ ] Errors surface to the UI with enough context for the user to understand what happened
+- [ ] Failed mid-task operations can resume from the last successful step
+
+**Red flags:**
+```typescript
+// BAD: Heuristic completion detection
+if (messages.at(-1)?.role === "assistant" && !messages.at(-1)?.tool_calls) {
+  setStatus("complete"); // Guessing based on absence of tool calls
+}
+
+// GOOD: Explicit completion signal
+tool("mark_complete", async ({ taskId, result }) => {
+  await tasks.update(taskId, { status: "completed", result });
+  return { text: `Task ${taskId} completed`, status: "completed" };
+});
+```
+
+### Context Boundedness
+
+- [ ] Tools support iterative refinement (summary first, then detail, then full content)
+- [ ] List operations support pagination or filtering — no unbounded returns
+- [ ] Large content can be accessed incrementally (not dumped into context all at once)
+
+**Red flags:**
+```typescript
+// BAD: Unbounded context dump
+tool("get_all_documents", async () => {
+  return { text: JSON.stringify(await db.documents.findAll()) };
+  // 10,000 documents blow the context window
+});
+
+// GOOD: Paginated with summary option
+tool("list_documents", async ({ query, page, pageSize, summaryOnly }) => {
+  const docs = await db.documents.find({ query, skip: page * pageSize, limit: pageSize });
+  if (summaryOnly) return { text: docs.map(d => `${d.id}: ${d.title}`).join("\n") };
+  return { text: JSON.stringify(docs) };
+});
+```
+
+### Approval Gates
+
+For each tool with side effects, evaluate using stakes x reversibility:
+
+| Tool | Side Effects | Stakes | Reversible? | Gate | Status |
+|------|-------------|--------|-------------|------|--------|
+
+- [ ] Destructive operations have approval gates proportional to their impact
+- [ ] High-stakes irreversible actions require explicit user confirmation
+- [ ] Gates are implemented at the tool level, not prompt-only instructions
+- [ ] Default is open — gating is a conscious decision with a stated reason
+
+**Red flags:** Delete with no confirmation, financial transactions auto-executed, email sends without preview, blanket restrictions ("agent cannot delete anything").
+
+### System Prompt Freshness
+
+- [ ] Tools listed in the system prompt match actual tool definitions (no phantom tools)
+- [ ] Resources/capabilities referenced in the prompt still exist (no stale references)
+- [ ] System prompt is generated from a source of truth (tool registry, schema) rather than manually maintained
+
+**Red flag:** System prompt lists tool names as string literals that drift silently from actual tool definitions.
+
+## Conditional Checks
+
+These activate only when the codebase matches specific patterns.
+
+### Dynamic Capability Discovery
+**When:** Codebase wraps external APIs where the agent should have full user-level access (HealthKit, HomeKit, GraphQL, REST APIs with many entity types).
+
+- [ ] Agent can discover available entity types at runtime (e.g., `list_available_types()` + `read_data(type)`) rather than having N hardcoded tools for N endpoints
+- [ ] When a new entity type is added to the backend, the agent can interact with it without a code deploy
+
+**When to skip:** Stable, simple APIs with a small fixed set of entity types. Static mapping is fine when the API doesn't grow.
+
+### Conflict Management
+**When:** Agents and users can modify the same data concurrently (shared workspace with mutable state).
+
+- [ ] Write operations are atomic (no partial writes visible to other actors)
+- [ ] Concurrent edits are detected (optimistic locking, version fields, or conflict detection)
+- [ ] A conflict resolution strategy exists (last-write-wins, merge, or user-decides)
+- [ ] Conflicts surface to the user with context, not as generic errors
