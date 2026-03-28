@@ -384,6 +384,23 @@ Set `decomposed = "execute"`. Proceed to Phase 4.
 **If user selects "Yes":**
 Set `decomposed = true`. Create issues in Linear:
 
+#### Standalone Issue Principle
+
+**Every issue must be fully executable without reading the plan file.** Workers receive the issue description as their sole specification — `/dispatch` injects the issue title and description into the worker prompt, and `/start-task` reads project docs (CLAUDE.md, README.md) but never `docs/plans/`. The plan file is a project record. It is NOT a worker dependency.
+
+**Prohibited patterns — these produce unusable issues:**
+- "See plan for details", "as described in the plan", or any reference to `docs/plans/` as a substitute for including implementation details in the issue
+- Summarizing a plan section in 1-2 sentences when the plan contains specific code paths, file paths, function names, or implementation steps for that task
+- Omitting test requirements, edge cases, or failure modes that the plan documents for a task's scope
+- Using the plan link as "additional context" — if a worker needs the detail, it belongs in the issue body
+
+**Required: Distribute ALL actionable plan detail across issues.** After decomposition, every implementation detail, code path, test requirement, and failure mode in the plan must exist in at least one issue description. The plan should contain nothing a worker needs that isn't already in their assigned issue.
+
+**Pre-creation checklist (verify before writing any `save_issue`):**
+1. For each major plan section (Technical Approach, Architecture, Implementation Phases, Test Diagram, Failure Modes, Acceptance Criteria, What Already Exists), identify which issue(s) will carry that detail
+2. Confirm no actionable plan detail is orphaned (exists only in the plan with no corresponding issue)
+3. Confirm each issue is independently actionable — a worker who reads ONLY the issue description plus CLAUDE.md can implement, test, and ship it
+
 **Dedup check first:** Before creating any issue, call `list_issues(project=<project>, query=<title>)` to check if an issue with this title already exists. Skip creation if found and log "Issue already exists: <title>".
 
 ```
@@ -409,25 +426,72 @@ list_issues(project=<project>)
 
 #### Quality Gate for Issue Descriptions
 
-Every issue created during decomposition must meet this minimum bar:
+Every issue created during decomposition must be a **complete, standalone specification**. A worker who reads only the issue description plus the project's CLAUDE.md must be able to implement the task without consulting any other document.
 
 **Required description structure:**
-```markdown
+
+~~~markdown
 ## Problem
-[What's wrong or what's needed — 2-3 sentences minimum]
+[Full context for WHY this task exists. Not a summary — include the motivation,
+the current state, and what's broken or missing. Transfer relevant context from
+the plan's Problem Statement, Overview, and Technical Considerations.
+A worker reading only this section must understand why this task matters
+and how it fits into the broader change.]
 
 ## Approach
-[How to fix/build it — specific enough for a worker to execute]
+[Detailed implementation guidance — specific enough to code from:]
+- Which files and functions to create or modify, with file paths
+- Which existing code/patterns to reuse (file paths from plan research)
+- Data flow: what goes in, what comes out, how state changes
+- Key design decisions from the plan that constrain this task
+- Architecture patterns to follow or extend
+["Implement the feature" is NEVER sufficient. Name the files, the functions,
+the data flow. If the plan's research identified specific line numbers or
+existing utilities, include them here.]
 
 ## Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
+- [ ] Specific, testable criterion scoped to THIS task
+- [ ] Each criterion should be verifiable with a named command or test
+[Do not include criteria that belong to sibling tasks in the decomposition.
+Every criterion must be independently provable by the worker.]
+
+## Test Requirements
+- [ ] Unit tests: [what to test, which test file, what fixtures]
+- [ ] Integration tests: [if applicable — what systems interact]
+- [ ] Edge cases to cover: [from plan's Test Diagram and Failure Modes]
+[Map directly from the plan's Test Diagram entries that fall within this
+task's scope. If the plan identified CRITICAL GAPs here, they MUST appear.]
 
 ## Target Files
-- path/to/file.ext
-```
+- path/to/file.ext — [what changes in this file and why]
+- path/to/other.ext — [what changes in this file and why]
+[Annotate each file with what the task does to it. Not a bare file list —
+a file-by-file roadmap. This also enables file-conflict detection during dispatch.]
 
-**Required fields:** `title` (descriptive), `description` (meets structure above), `priority` (1-4), `labels` (at least one: Bug, Feature, Improvement, Refactor), `project`.
+## Edge Cases & Failure Modes
+- [Failure scenario from plan]: [expected handling]
+- [Edge case from plan]: [expected behavior]
+[Transfer the relevant entries from the plan's Failure Modes table for this
+task's scope. If the plan identified CRITICAL GAPs (silent + no test + no
+handling) that touch this task, they MUST be listed and addressed.]
+
+## Dependencies
+- Assumes [task-id] is complete: [what it provides that this task builds on]
+- Produces for [task-id]: [what this task creates that downstream tasks need]
+[If no dependencies, state "None — independently executable".
+Workers use this to validate their starting state before coding.]
+~~~
+
+**Section depth requirements — an issue fails the quality gate if any section is thin:**
+- **Problem**: Full context, not a summary. If the plan's Problem Statement is 5 sentences, the issue's Problem section for a related task should carry that context (adapted to this task's scope), not compress it to one sentence.
+- **Approach**: Must include specific file paths, function names, and patterns. "Update the API" is insufficient — name which endpoint, which handler, which validation, which response shape.
+- **Acceptance Criteria**: Scoped to this task only. Every criterion is independently verifiable by the worker without knowledge of sibling tasks.
+- **Test Requirements**: Must map from the plan's Test Diagram. If the plan says "unit test for X" and X is in this task's scope, it must appear here.
+- **Target Files**: Annotated with what changes per file. A bare `- src/foo.py` without explanation fails the gate.
+- **Edge Cases & Failure Modes**: Must carry over the plan's Failure Modes entries for this task's scope. An empty section when the plan documents failure modes for files this task touches fails the gate.
+- **Dependencies**: Must name what blocking tasks provide and what this task produces. "Blocked by INT-14" without explaining what INT-14 provides is insufficient.
+
+**Required fields:** `title` (descriptive), `description` (meets full structure above), `priority` (1-4), `labels` (at least one: Bug, Feature, Improvement, Refactor), `project`.
 
 **Formatting rules:** Write actual markdown with real line breaks. Never use `\n` escape sequences. Do not include XML tool syntax or string delimiters in content.
 
@@ -442,6 +506,18 @@ Every issue created during decomposition must meet this minimum bar:
 > **Target files:** Include a `## Target Files` section in each issue description listing the primary files the task will create or modify. This enables file-conflict detection during dispatch.
 
 > **No transitive edges:** If A depends on B and B depends on C, do NOT also add A→C. Only direct edges.
+
+#### Post-Decomposition Coverage Check
+
+After all issues are created, verify completeness before proceeding to Phase 4:
+
+1. **Plan coverage audit**: Walk each major plan section that contains actionable detail (Technical Approach, Architecture, Implementation Phases, Test Diagram, Failure Modes, Acceptance Criteria, What Already Exists). For each section, confirm at least one issue carries its content. If any actionable detail is orphaned — exists only in the plan with no corresponding issue — add it to the appropriate issue via `save_issue(id=<id>, description="<updated description>")`.
+
+2. **Standalone spot-check**: Read the description of the most complex issue in isolation (via `get_issue`). Ask: "Could a worker implement this task from this description plus CLAUDE.md alone, without reading the plan file or any other issue?" If the answer is no, enrich the issue until the answer is yes.
+
+3. **Cross-task dependency audit**: For each issue with `blockedBy` relations, verify the Dependencies section names what the blocking task provides and what state the worker can expect. For each issue that `blocks` others, verify it states what it produces for downstream tasks.
+
+4. **Plan file reference scan**: Skim each created issue's description. If any issue contains a reference to `docs/plans/`, a plan file path, or phrases like "see plan" or "as described in the plan" — remove the reference and replace it with the actual detail from the plan.
 
 **If user selects "No":**
 Set `decomposed = false`. Proceed to Phase 4.
