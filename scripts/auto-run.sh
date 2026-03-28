@@ -21,11 +21,8 @@ if ! command -v expect &>/dev/null; then
   exit 1
 fi
 
-# Verify bd (beads CLI) is available
-if ! command -v bd &>/dev/null; then
-  echo "Error: 'bd' (beads CLI) is required but not installed."
-  exit 1
-fi
+# Note: Linear MCP is checked by the /auto-run skill itself.
+# No CLI dependency check needed here.
 
 SKILL_ARGS=""
 LOG_DIR="docs/auto-run-logs"
@@ -43,11 +40,15 @@ log() {
 }
 
 has_remaining_work() {
-  local ready
-  local in_progress
-  ready=$(bd ready 2>/dev/null | grep -c '^[A-Za-z]' || true)
-  in_progress=$(bd list 2>/dev/null | grep -ci 'in.progress' || true)
-  [ "$ready" -gt 0 ] || [ "$in_progress" -gt 0 ]
+  # Check checkpoint file for task state — the /auto-run skill tracks this
+  if [ -f "$CHECKPOINT" ]; then
+    local status
+    status=$(jq -r '.status // "unknown"' "$CHECKPOINT" 2>/dev/null)
+    [ "$status" = "running" ]
+  else
+    # No checkpoint means first run — assume work exists
+    true
+  fi
 }
 
 checkpoint_status() {
@@ -64,9 +65,9 @@ log "Args: $SKILL_ARGS"
 while true; do
   ITERATION=$((ITERATION + 1))
 
-  # Check if there's remaining work via beads (source of truth)
+  # Check if there's remaining work
   if ! has_remaining_work; then
-    log "No remaining work in beads. All done."
+    log "No remaining work. All done."
     break
   fi
 

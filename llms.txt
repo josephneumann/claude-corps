@@ -6,27 +6,29 @@ claude-corps provides skills, agents, hooks, and scripts that extend Claude Code
 
 ## Key Capabilities
 
-- /dispatch: Spawn parallel agent teammates via Agent Teams, each on an isolated branch
+- /dispatch: Spawn parallel agent workers in isolated git worktrees
 - /auto-run: Autonomous multi-hour orchestration loop (dispatch, reconcile, repeat)
-- /spec: Research-driven planning with parallel agents — interactive refinement, plan writing, task decomposition. Use --deepen to enhance an existing plan with parallel research
+- /spec: Research-driven planning with parallel agents — interactive refinement, plan writing, optional task decomposition into Linear issues
 - /orient: Survey a project and identify parallel work streams
 - /start-task: Claim a task, create a task branch, gather context, define acceptance criteria
 - /finish-task: Tests, commit, PR, code review, session summary, close
-- /compound: Capture learnings for future sessions (compound engineering)
-- /multi-review: Parallel specialized code review with 11 agent types (including framework-specific reviewers for Next.js, Tailwind/shadcn, and Python backend)
+- /multi-review: Parallel specialized code review with 14+ agent types (including framework-specific reviewers for Next.js, Tailwind/shadcn, Python backend, and more)
 - Review configuration: Per-project .claude/review.json for review depth, reviewer overrides, and smart model selection (Opus for critical/high, Sonnet for medium/low)
 
 ## Architecture
 
-Orchestrator + Workers pattern. One Claude session orients and dispatches work via Agent Teams.
-Worker sessions execute tasks on isolated branches and report back with session summaries.
+Orchestrator + Workers pattern. One Claude session orients and dispatches work.
+Worker sessions execute tasks in isolated git worktrees and report back with session summaries.
 The orchestrator reconciles results, updates the task board, and dispatches newly unblocked work.
+
+Task tracking is optional. With Linear MCP connected, skills create/manage issues automatically.
+Without Linear, skills write plan files and execute directly from them.
 
 ## Dependencies
 
 - Claude Code (Anthropic's CLI): https://docs.anthropic.com/en/docs/claude-code
-- beads (task management): https://github.com/josephneumann/beads
-- Agent Teams (multi-agent): https://docs.anthropic.com/en/docs/claude-code/agent-teams
+- Linear MCP (optional task tracking): https://mcp.linear.app/mcp
+- git with worktree support
 
 ## Links
 

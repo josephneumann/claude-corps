@@ -18,6 +18,26 @@
 
 **NEVER merge a pull request without explicit confirmation from the user.** Always ask before merging, even if all checks pass and the review looks clean. The human decides when code lands.
 
+## Task Tracking
+
+If the Linear MCP server is connected (test: `list_teams` tool is available), use Linear for all task operations — creating issues, updating status, querying ready tasks, managing dependencies.
+
+If Linear MCP is **not** available, skip all task tracking steps in skills silently. Continue with implementation work. Plan files in `docs/plans/` are always the primary deliverable.
+
+**Task tracking is advisory, not a gate.** Never block implementation on a task-tracking failure. If a Linear call fails, log a warning and continue.
+
+### Linear Config
+
+When using Linear, reference these workspace details:
+
+- **Detection**: Check if `list_teams` or `list_issues` tools are available
+- **"Ready" tasks**: `list_issues(state=Todo)` → filter to those with empty `blockedBy` via `get_issue(includeRelations=true)`
+- **Status mapping**: open → Todo, in_progress → In Progress, closed → Done
+- **Relations**: `blocks`/`blockedBy` on `save_issue` (append-only — remove via Linear UI)
+- **Hierarchy**: `parentId` on `save_issue` for sub-issues; Linear projects for grouping (projects are NOT issues)
+- **Agent delegation**: `delegate` field on `save_issue` to assign to named agents
+- **Comments**: `save_comment` for session summaries, reconciliation notes
+
 ## Critical Rule: Always Run `/finish-task`
 
 **A task is NOT complete until `/finish-task` has been run.** No exceptions.

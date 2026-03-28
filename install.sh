@@ -108,15 +108,6 @@ if [ -f "$SETTINGS_FILE" ]; then
         '.hooks.Stop = [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/hooks/reconcile-reminder.sh", "statusMessage": "Checking for unreconciled summaries..."}]}]' \
         "Stop reconcile-reminder hook"
 
-    # SessionStart: BEADS_NO_DAEMON for worktrees
-    if ! jq -e '.hooks.SessionStart[] | select(.hooks[].command | test("BEADS_NO_DAEMON"))' "$SETTINGS_FILE" > /dev/null 2>&1; then
-        DAEMON_HOOK='{"matcher": "", "hooks": [{"type": "command", "command": "TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null); MAIN=$(git worktree list 2>/dev/null | head -1 | awk '"'"'{print $1}'"'"'); if [ \"$TOPLEVEL\" != \"$MAIN\" ] && [ -n \"$MAIN\" ]; then echo '"'"'export BEADS_NO_DAEMON=1'"'"' >> \"$CLAUDE_ENV_FILE\"; fi"}]}'
-        jq --argjson hook "$DAEMON_HOOK" '.hooks.SessionStart += [$hook]' \
-            "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-        echo "✓ Registered SessionStart BEADS_NO_DAEMON hook"
-    else
-        echo "✓ SessionStart BEADS_NO_DAEMON hook already registered"
-    fi
 else
     echo "⚠ No settings.json found at $SETTINGS_FILE — skipping hook registration"
     echo "  Create settings.json manually or run Claude Code to generate it"

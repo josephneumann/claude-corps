@@ -10,8 +10,11 @@ Generate a comprehensive session summary for task `$ARGUMENTS`. This is a standa
 
 ## 1. Gather Context
 
+If Linear MCP is available, call `get_issue(id=$ARGUMENTS, includeRelations=true)` to get task details (title, status, priority, description, blockers, blocked-by).
+
+If Linear MCP is not available, skip task context — use plan file or conversation context instead.
+
 ```bash
-bd show $ARGUMENTS
 git status
 git log --oneline -10
 git diff --stat HEAD~5 2>/dev/null || git diff --stat
@@ -44,17 +47,17 @@ pnpm test 2>/dev/null | tail -10
 
 ## 4. Check Unblocked Tasks
 
-```bash
-bd dep tree $ARGUMENTS 2>/dev/null || echo "No dependency info"
-```
+If Linear MCP is available, call `get_issue(id=$ARGUMENTS, includeRelations=true)` and check the `blocks` array — those are tasks this one unblocks when completed.
+
+If Linear MCP is not available, note "No dependency info available."
 
 ## 5. Re-Read Original Task Spec
 
-**CRITICAL**: Before writing the session summary, re-read the original task specification to accurately identify divergences:
+**CRITICAL**: Before writing the session summary, re-read the original task specification to accurately identify divergences.
 
-```bash
-bd show $ARGUMENTS
-```
+If Linear MCP is available, call `get_issue(id=$ARGUMENTS)` and read the description field.
+
+If not, check `docs/plans/` for the relevant plan file section.
 
 Save this output mentally - you'll compare it against your implementation when writing the SPEC DIVERGENCES section. Don't rely on memory; divergences are easy to miss without explicit comparison.
 
@@ -72,10 +75,10 @@ SESSION SUMMARY: <Task Title>
 TASK OVERVIEW
 -------------
 ID: $ARGUMENTS
-Title: <title from bd show>
+Title: <title from task>
 Status: <current status>
-Priority: <P1/P2/P3 from bd show>
-Type: <feature/task/bug from bd show>
+Priority: <priority from task>
+Labels: <labels from task>
 
 INTENT & SCOPE
 --------------
@@ -131,15 +134,14 @@ PR: <URL or "Not created">
 Merged to: <target branch or "Not merged">
 Model: <opus|sonnet|inherited>
 
-BEADS STATUS
-------------
+TASK STATUS
+-----------
 Task closed: <Yes/No>
 Reason: <close reason or "Still in progress">
-Synced to remote: <Yes/No>
 
 SPEC DIVERGENCES
 ----------------
-Compare your implementation against the original task description from `bd show`. Document ANY differences between what was specified and what was actually built. Be explicit and thorough - the orchestrator relies on this to keep the task board accurate.
+Compare your implementation against the original task description (from Linear issue or plan file). Document ANY differences between what was specified and what was actually built. Be explicit and thorough - the orchestrator relies on this to keep the task board accurate.
 
 Format each divergence as:
 
@@ -161,7 +163,7 @@ Examples of divergences to document:
 
 FOLLOW-UP ISSUES CREATED
 ------------------------
-<List any new beads issues created during this session, or "None">
+<List any new issues created during this session (Linear or otherwise), or "None">
 
 DEPENDENCIES UNBLOCKED
 ----------------------

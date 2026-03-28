@@ -7,7 +7,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 | Skill | Purpose | When to Use |
 |-------|---------|-------------|
 | `/product-review` | Product-taste review with interrogation mode, assumption mapping (V/U/Vi/F), devil's advocate challenges, and alternatives analysis. EXPAND / HOLD / REDUCE / DESIGN modes | Before `/spec` for greenfield features, or standalone. Use DESIGN for UI-heavy features. |
-| `/spec` | Research, plan, decompose into tasks | New idea, feature description, or goal |
+| `/spec` | Research, plan, optionally decompose into Linear issues | New idea, feature description, or goal |
 | `/spec --deepen` | Enhance plan with parallel research agents | Existing plan needs more depth |
 | `/plan-eng-review` | Interactive engineering plan review: architecture, code quality, tests, performance. One issue per question. | Core checks (scope, tests, failure modes) run automatically in `/spec` Phase 2.5. Use standalone for full-depth deep-dive on any plan. |
 | `/plan-design-review` | Scored design plan review: 7 UI/UX dimensions rated 0-10 with fixes | Core checks (interaction states, AI slop risk) run automatically in `/spec` Phase 2.5 for UI plans. Use standalone for full 7-pass deep-dive. |
@@ -23,7 +23,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 | `/auto-run [--sequential]` | Autonomous dispatch-reconcile loop. `--sequential` for dependent task chains. | Batch processing, overnight runs |
 | `/milestone-review` | Iterative review-fix loop for branch changes | After milestone tasks complete, or manually |
 | `/summarize-session <id>` | Progress summary (read-only) | Mid-session checkpoint |
-| `/reconcile-summary` | Sync beads with implementation reality | After worker completes |
+| `/reconcile-summary` | Sync task board with implementation reality | After worker completes |
 
 ## Quality
 

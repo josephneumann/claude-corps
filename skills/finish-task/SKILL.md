@@ -1,36 +1,37 @@
 ---
 name: finish-task
-description: "Use when implementation and tests are complete and you're ready to close out a beads task"
+description: "Use when implementation and tests are complete and you're ready to close out a task"
 allowed-tools: Read, Bash, Glob, Grep, Edit, Write, Skill, AskUserQuestion, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_fill_form, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_console_messages, mcp__playwright__browser_close, mcp__playwright__browser_run_code, mcp__playwright__browser_navigate_back, mcp__playwright__browser_evaluate
 ---
 
-# Finish Beads Task: $ARGUMENTS
+# Finish Task: $ARGUMENTS
 
-You are completing work on beads task `$ARGUMENTS`. Follow this checklist precisely. **Work is NOT complete until git push succeeds.**
+You are completing work on task `$ARGUMENTS`. Follow this checklist precisely. **Work is NOT complete until git push succeeds.**
 
 ## 0. Parse Arguments
 
 Parse `$ARGUMENTS` to extract:
-- `task_id`: The beads task ID (everything before any flags)
+- `task_id`: The task ID, e.g. INT-14 (everything before any flags)
 - `--direct`: Optional flag indicating direct/sequential mode (no PR, commit-only)
 
 Examples:
-- `/finish-task SD-0gf.1` → task_id = `SD-0gf.1`, direct = false
-- `/finish-task SD-0gf.1 --direct` → task_id = `SD-0gf.1`, direct = true
+- `/finish-task INT-14` → task_id = `INT-14`, direct = false
+- `/finish-task INT-14 --direct` → task_id = `INT-14`, direct = true
 
 **When `--direct` is set:** Steps 11 (Create PR), 11a (Code Review), and 12 (Merge PR) are skipped entirely. All other steps run normally. This mode is used by `/dispatch --sequential` for tasks that commit directly to a working branch without PR ceremony.
 
 ## 1. Verify Current State
 
+If Linear MCP is available, call `get_issue(id=<task_id>, includeRelations=true)` to check task state.
+
 ```bash
-bd show <task_id>
 git status
 git log --oneline -5
 pwd
 ```
 
 Confirm:
-- Task is `in_progress`
+- Task is `In Progress` (if Linear available)
 - You're on the correct task branch
 - All changes are visible
 
@@ -38,7 +39,7 @@ Confirm:
 
 **Philosophy: Bounded autonomy** — Verify the task achieved what it set out to do.
 
-From the `bd show` output above, check for recorded acceptance criteria (in notes or description). Verify each is met:
+From the task details (Linear issue description or plan file), check for recorded acceptance criteria. Verify each is met:
 ```
 Acceptance Criteria Check:
 - [x] <criterion 1> — Implemented in <file>
@@ -105,9 +106,7 @@ Update any documentation that is now stale or incomplete due to your changes. Ke
 
 If there's remaining work, TODOs, or improvements discovered during implementation:
 
-```bash
-bd create "Follow-up: <description>"
-```
+If Linear MCP is available: `save_issue(title="Follow-up: <description>", team=<team>, project=<project>)`
 
 Do this BEFORE closing the main task so nothing is lost.
 
@@ -136,14 +135,6 @@ EOF
 )"
 ```
 
-## 7. Sync Beads (Pre-Push)
-
-Sync beads before pushing to pull any remote changes:
-
-```bash
-bd sync
-```
-
 ## 8. Push to Remote
 
 ```bash
@@ -152,27 +143,21 @@ git push -u origin $(git branch --show-current)
 
 **If push fails, resolve and retry.** Do NOT proceed until push succeeds.
 
-## 9. Close the Task and Final Sync
+## 9. Close the Task
 
-```bash
-bd close $ARGUMENTS --reason="Completed. See branch $(git branch --show-current)."
-bd sync
-```
-
-**CRITICAL**: The final `bd sync` ensures the task closure is pushed to the remote. Without this, other agents won't see the task is complete.
+If Linear MCP is available:
+- Call `save_issue(id=$ARGUMENTS, state=Done)`
+- Call `save_comment(issueId=$ARGUMENTS, body="Completed. See branch $(git branch --show-current).")`
 
 ## 10. Verify Everything is Synced
 
 ```bash
 git status
-bd show $ARGUMENTS
-bd sync  # Run again to confirm no pending changes
 ```
 
 Confirm:
 - Git shows "Your branch is up to date with origin"
-- Task status is `closed`
-- `bd sync` shows "no changes" or "already up to date"
+- Task status is `Done` (if Linear available)
 
 ## 11. Create Pull Request
 
@@ -207,7 +192,7 @@ gh pr create $BASE_FLAG --title "feat(<scope>): <description>" --body "$(cat <<'
 
 ## Task
 
-Closes beads task `$ARGUMENTS`
+Closes task `$ARGUMENTS`
 
 ## Test Plan
 
@@ -308,9 +293,7 @@ gh pr merge --merge --delete-branch
 
 # Clean up completed worktrees, then pull merged changes
 git worktree prune
-git checkout -- .beads/issues.jsonl 2>/dev/null
 git pull
-bd sync --import-only 2>/dev/null
 ```
 
 **FAIL-FAST on merge conflicts:** If `gh pr merge` fails due to merge conflicts, **STOP IMMEDIATELY**. Do NOT attempt cherry-pick, rebase, or any other merge strategy. Output this message and exit:
@@ -336,11 +319,10 @@ git push origin --delete "$BRANCH_NAME" 2>/dev/null || true
 
 ## 13. Re-Read Original Task Spec
 
-**CRITICAL**: Before writing the session summary, re-read the original task specification to accurately identify divergences:
+**CRITICAL**: Before writing the session summary, re-read the original task specification to accurately identify divergences.
 
-```bash
-bd show $ARGUMENTS
-```
+If Linear MCP is available, call `get_issue(id=$ARGUMENTS)` and read the description field.
+If not, check `docs/plans/` for the relevant plan file section.
 
 Save this output mentally - you'll compare it against your implementation when writing the SPEC DIVERGENCES section. Don't rely on memory; divergences are easy to miss without explicit comparison.
 
@@ -358,10 +340,10 @@ SESSION SUMMARY: <Task Title>
 TASK OVERVIEW
 -------------
 ID: $ARGUMENTS
-Title: <title from bd show>
-Status: Closed
-Priority: <P1/P2/P3 from bd show>
-Type: <feature/task/bug from bd show>
+Title: <title from task>
+Status: Done
+Priority: <priority from task>
+Labels: <labels from task>
 
 INTENT & SCOPE
 --------------
@@ -417,15 +399,14 @@ PR: <URL or "Not created">
 Merged to: <target branch>
 Model: <opus|sonnet|inherited>
 
-BEADS STATUS
-------------
+TASK STATUS
+-----------
 Task closed: Yes
 Reason: <close reason>
-Synced to remote: Yes
 
 SPEC DIVERGENCES
 ----------------
-Compare your implementation against the original task description from `bd show`. Document ANY differences between what was specified and what was actually built. Be explicit and thorough - the orchestrator relies on this to keep the task board accurate.
+Compare your implementation against the original task description (from Linear issue or plan file). Document ANY differences between what was specified and what was actually built. Be explicit and thorough - the orchestrator relies on this to keep the task board accurate.
 
 Format each divergence as:
 
@@ -447,7 +428,7 @@ Examples of divergences to document:
 
 FOLLOW-UP ISSUES CREATED
 ------------------------
-<List any new beads issues created during this session, or "None">
+<List any new issues created during this session (Linear or otherwise), or "None">
 
 DEPENDENCIES UNBLOCKED
 ----------------------
@@ -535,7 +516,7 @@ This avoids clipboard conflicts when multiple worker sessions complete simultane
 
 ## 17. Notify Orchestrator
 
-**IMPORTANT**: If you documented any SPEC DIVERGENCES, the orchestrator needs to reconcile the beads task board with the implementation reality.
+**IMPORTANT**: If you documented any SPEC DIVERGENCES, the orchestrator needs to reconcile the task board with the implementation reality.
 
 Output this message to the user:
 

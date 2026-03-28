@@ -1,46 +1,40 @@
 ---
 name: start-task
-description: "Start working on a beads task (claim, gather context, define acceptance criteria)"
+description: "Start working on a task (claim, gather context, define acceptance criteria)"
 allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 ---
 
-# Start Beads Task: $ARGUMENTS
+# Start Task: $ARGUMENTS
 
-You are starting work on a beads task. Follow this checklist precisely.
+You are starting work on a task. Follow this checklist precisely.
 
 ## 0. Parse Arguments
 
 The command format is: `/start-task <task-id> [--handoff "<context>"]`
 
 Parse `$ARGUMENTS` to extract:
-- `task_id`: The beads task ID (everything before any flags)
+- `task_id`: The task ID, e.g. INT-14 (everything before any flags)
 - `handoff_context`: Optional inline handoff text (content in quotes after `--handoff` flag)
 
 Examples:
-- `/start-task MoneyPrinter-46j.1` → task_id = `MoneyPrinter-46j.1`
-- `/start-task MoneyPrinter-46j.1 --handoff "Use 3% tolerance"` → with handoff context
+- `/start-task INT-14` → task_id = `INT-14`
+- `/start-task INT-14 --handoff "Use 3% tolerance"` → with handoff context
 
 ## 1. Validate and Claim Task (FIRST!)
 
 **CRITICAL: Claim the task immediately to prevent race conditions with parallel workers.**
 
-```bash
-# Validate task exists
-bd show <task_id>
-```
+If Linear MCP is available, call `get_issue(id=<task_id>, includeRelations=true)` to validate the task exists and get its details.
 
 If the task doesn't exist, stop and report the error.
 
-If the task is already `in_progress` or `closed`, warn the user:
-- If `in_progress`: "This task is already claimed. Another worker may be on it. Proceed anyway?"
-- If `closed`: "This task is already closed. Did you mean a different task?"
+If the task is already `In Progress` or `Done`, warn the user:
+- If `In Progress`: "This task is already claimed. Another worker may be on it. Proceed anyway?"
+- If `Done`: "This task is already closed. Did you mean a different task?"
 
-**Claim it immediately:**
+**Claim it immediately** (if Linear MCP available):
 
-```bash
-bd update <task_id> --status in_progress
-bd sync
-```
+Call `save_issue(id=<task_id>, state="In Progress", assignee="me")`
 
 This must happen BEFORE any other setup (branch creation, context gathering, etc.) to minimize the window where two workers might claim the same task.
 
@@ -78,8 +72,9 @@ Read these files to understand the project:
 
 ## 5. Check Recent Work
 
+If Linear MCP is available, call `list_issues(state="In Progress")` and `list_issues(state=Done, limit=10)` to see recent work.
+
 ```bash
-bd list --all | head -20
 git log --oneline -10
 ```
 
@@ -87,19 +82,11 @@ Understand what's been done recently and what state the project is in.
 
 ## 6. Check Task Dependencies
 
-```bash
-bd show <task_id>
-```
-
-Look at the "Blocked by" section. If this task has unmet dependencies, warn the user and ask if they want to proceed anyway.
+If Linear MCP is available, the `get_issue` call from Step 1 already includes relations. Check the `blockedBy` array. If this task has unmet dependencies, warn the user and ask if they want to proceed anyway.
 
 ### 6.1 Concurrent Work Awareness
 
-Check what other tasks are currently in progress to understand the broader context:
-
-```bash
-bd list --status=in_progress 2>/dev/null
-```
+If Linear MCP is available, call `list_issues(state="In Progress")` to see what other tasks are currently being worked on.
 
 If other tasks are in progress, note them for awareness — avoid modifying files that are likely being changed by other workers. If you discover a shared interface concern during implementation, document it in your session summary for the orchestrator.
 
@@ -146,10 +133,8 @@ Task: [appropriate-researcher]
 
 ### Document Research Findings
 
-If research was conducted, update the task:
-```bash
-bd update <task_id> --notes "Research: <brief summary of findings>"
-```
+If research was conducted and Linear MCP is available, post findings as a comment:
+Call `save_comment(issueId=<task_id>, body="Research: <brief summary of findings>")`
 
 ---
 
@@ -195,17 +180,15 @@ This task seems large for a single session. Options:
 Which approach?
 ```
 
-**If user chooses "Break it down":**
-```bash
-# Create subtasks under the parent (--parent = containment, not blocking)
-bd create --title="Subtask: <part 1>" --type=task --priority=<same> --parent <parent-task-id>
-bd create --title="Subtask: <part 2>" --type=task --priority=<same> --parent <parent-task-id>
+**If user chooses "Break it down"** and Linear MCP is available:
 
-# Unclaim the parent (it's now a container)
-bd update <parent-task-id> --status open
-```
+Create subtasks under the parent:
+- `save_issue(title="Subtask: <part 1>", team=<team>, parentId=<parent-task-id>, priority=<same>)`
+- `save_issue(title="Subtask: <part 2>", team=<team>, parentId=<parent-task-id>, priority=<same>)`
 
-Note: No `bd dep add` needed — subtasks are children, not blocked. If subtasks have ordering between them (part 2 depends on part 1), add `bd dep add <part-2-id> <part-1-id>` explicitly.
+Unclaim the parent: `save_issue(id=<parent-task-id>, state=Todo)`
+
+If subtasks have ordering (part 2 depends on part 1): `save_issue(id=<part-2-id>, blockedBy=[<part-1-id>])`
 
 Then ask: "Which subtask should we work on? I'll switch to that task."
 
@@ -242,10 +225,8 @@ Is this complete? Anything to add or change?
 - **Testable** — Can be verified with a test or clear manual check
 - **Bounded** — Clear what's in scope and what's not
 
-Record the agreed criteria:
-```bash
-bd update <task_id> --notes "Acceptance: <brief summary of criteria>"
-```
+If Linear MCP is available, record the agreed criteria as a comment:
+Call `save_comment(issueId=<task_id>, body="Acceptance Criteria:\n<criteria list>")`
 
 ## 10. Clarify Ambiguities
 
@@ -290,7 +271,7 @@ This command handles everything required to properly close out:
 - Creates the PR
 - Runs automated code review
 - Generates session summary for orchestrator
-- Closes the task in beads
+- Closes the task
 
 **DO NOT**:
 - Stop the session without running `/finish-task`

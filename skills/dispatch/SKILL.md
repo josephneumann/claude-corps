@@ -6,21 +6,21 @@ allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion, Agent
 
 # Dispatch Workers: $ARGUMENTS
 
-You are an orchestrator dispatching workers for beads tasks. By default, each worker runs in its own git worktree for true filesystem isolation. With `--sequential`, workers execute directly on the current branch without worktrees.
+You are an orchestrator dispatching workers for tasks. By default, each worker runs in its own git worktree for true filesystem isolation. With `--sequential`, workers execute directly on the current branch without worktrees.
 
 ## Parse Arguments
 
 Arguments: `$ARGUMENTS`
 
 Parse the following patterns:
-- `--count N` — Auto-select N ready tasks from `bd ready`
+- `--count N` — Auto-select N ready tasks
 - `--sequential` — Execute tasks one at a time on the current branch (no worktree isolation, no PR per task). Use for dependent/sequential tasks that need to see each other's changes.
 - `--plan-first` — Force all workers into plan approval mode
 - `--no-plan` — Disable auto risk detection, all use bypassPermissions
 - `--yes` — Skip dispatch confirmation (used by /auto-run for autonomous operation)
 - `--model opus|sonnet` — Override model selection for all tasks
 - `<task-id>` — Specific task to dispatch
-- `<task-id>:"context"` — Task with custom context (e.g., `MoneyPrinter-ajq:"Use PriceCache"`)
+- `<task-id>:"context"` — Task with custom context (e.g., `INT-15:"Use PriceCache"`)
 
 If no arguments provided, default to `--count 3`.
 
@@ -28,22 +28,15 @@ If no arguments provided, default to `--count 3`.
 
 **If `--count N` was specified (or defaulted):**
 
-Run `bd ready` to get available tasks:
-```bash
-bd ready
-```
+Query ready tasks: call `list_issues(state=Todo)` to get candidate tasks. For each, call `get_issue(id, includeRelations=true)` and filter to those with empty `blockedBy` arrays. These are the "ready" tasks.
 
 Select the first N tasks that are:
-- **Not epics** — Prefer concrete tasks (type: task, feature, bug) over epics
-- **High priority first** — P0 > P1 > P2 > P3 > P4
-- **Not already in_progress** — Only ready tasks
+- **High priority first** — Urgent > High > Normal > Low
+- **Not already In Progress** — Only Todo/Backlog tasks with no blockers
 
 **If specific tasks were provided:**
 
-Validate each task exists:
-```bash
-bd show <task-id>
-```
+Validate each task exists by calling `get_issue(id=<task-id>, includeRelations=true)`.
 
 ## Step 2: Worktree Cleanup
 
@@ -83,7 +76,7 @@ First, check for a project-level review config:
 cat .claude/review.json 2>/dev/null || cat .claude/risk-tiers.json 2>/dev/null || echo "No review config found"
 ```
 
-**With review config:** Match task file paths (from `bd show` description or related files) against tier patterns. The highest matching tier determines the task's risk level:
+**With review config:** Match task file paths (from issue description or related files) against tier patterns. The highest matching tier determines the task's risk level:
 
 | Risk Tier | Dispatch Mode |
 |-----------|---------------|
@@ -92,7 +85,7 @@ cat .claude/review.json 2>/dev/null || cat .claude/risk-tiers.json 2>/dev/null |
 | medium | `[AUTO]` |
 | low | `[AUTO]` |
 
-**Without review config (keyword fallback):** For each task, check its title + description (from `bd show`) for high-risk keywords (case-insensitive):
+**Without review config (keyword fallback):** For each task, check its title + description (from `get_issue`) for high-risk keywords (case-insensitive):
 
 - **Security**: `auth`, `authentication`, `authorization`, `encrypt`, `secret`, `password`, `token`, `credential`
 - **Data**: `migration`, `migrate`, `schema change`, `drop table`, `delete data`
@@ -124,11 +117,8 @@ Display the model in the dispatch summary: `[AUTO/sonnet]` or `[PLAN/opus]`.
 
 For each task without explicit context:
 
-1. Read the task details from `bd show <task-id>`
-2. Check what other tasks are currently in progress for situational awareness:
-   ```bash
-   bd list --status=in_progress 2>/dev/null
-   ```
+1. Read the task details from `get_issue(id=<task-id>, includeRelations=true)`
+2. Check what other tasks are currently in progress for situational awareness by calling `list_issues(state="In Progress")`
 3. Look for related patterns in the codebase:
    - Check if similar files exist that the worker should follow
    - Look for recently completed dependencies
@@ -137,7 +127,7 @@ For each task without explicit context:
 Example contexts:
 - "Use sector_etfs.txt format from existing tickers/ directory"
 - "Follow the pattern in backtesting/cache.py for data storage"
-- "Depends on completed MoneyPrinter-xyz, can use its output"
+- "Depends on completed INT-14, can use its output"
 
 ## Step 4: Confirm Dispatch
 
@@ -207,11 +197,11 @@ For each task, use the Agent tool with:
 ```
 You are an autonomous worker in your own isolated git worktree. Your task:
 
-<task title and description from bd show>
+<task title and description from get_issue>
 
 Context: <generated context>
 
-Currently in progress (other workers): <list from bd list --status=in_progress, if any>
+Currently in progress (other workers): <list from list_issues state=In Progress, if any>
 
 Instructions:
 1. Run `/start-task <task-id>` to claim the task and verify your environment
@@ -228,11 +218,11 @@ CRITICAL CONTRACT:
 ```
 You are an autonomous worker in your own isolated git worktree, spawned in PLAN MODE. Your task:
 
-<task title and description from bd show>
+<task title and description from get_issue>
 
 Context: <generated context>
 
-Currently in progress (other workers): <list from bd list --status=in_progress, if any>
+Currently in progress (other workers): <list from list_issues state=In Progress, if any>
 
 Instructions:
 1. Run `/start-task <task-id>` to claim the task and gather context
@@ -269,7 +259,7 @@ You are an autonomous worker executing DIRECTLY on branch <current-branch>. No w
 
 Your task:
 
-<task title and description from bd show>
+<task title and description from get_issue>
 
 Context: <generated context>
 
@@ -312,7 +302,7 @@ All commits are on branch <current-branch>.
 No PRs created — review accumulated changes with /milestone-review.
 
 IMPORTANT: Before ending this session, run /reconcile-summary to sync
-all worker results back to beads.
+all worker results with the task board.
 ```
 
 **If parallel (default):**
@@ -338,7 +328,7 @@ Workers are running in the background. You will be notified as each completes.
 After all workers finish, run /reconcile-summary to process their results.
 
 IMPORTANT: Before ending this session, run /reconcile-summary to sync
-all worker results back to beads.
+all worker results with the task board.
 ```
 
 ## Error Handling
@@ -364,12 +354,12 @@ all worker results back to beads.
 
 **Specific tasks:**
 ```
-/dispatch MoneyPrinter-ajq MoneyPrinter-4b3
+/dispatch INT-15 INT-16
 ```
 
 **With custom context:**
 ```
-/dispatch MoneyPrinter-ajq:"Use existing ticker format"
+/dispatch INT-15:"Use existing ticker format"
 ```
 
 **Force all tasks to use Opus:**
@@ -379,7 +369,7 @@ all worker results back to beads.
 
 **Sequential execution (tasks run one at a time on current branch):**
 ```
-/dispatch --sequential SD-0gf.1 SD-0gf.2 SD-0gf.3
+/dispatch --sequential INT-14 INT-15 INT-16
 ```
 
 **Sequential with auto-run (autonomous):**

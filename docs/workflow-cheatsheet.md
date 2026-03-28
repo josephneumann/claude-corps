@@ -24,7 +24,7 @@
 # Use for dependent tasks (Phase 1 → Phase 2 → Phase 3). No PRs per task.
 
 # Worker completes → orchestrator reconciles
-/reconcile-summary → update beads → dispatch next batch
+/reconcile-summary → update task board → dispatch next batch
 
 # Fully autonomous (parallel)
 /auto-run --through <target-task>
@@ -43,18 +43,30 @@
 /reconcile-summary
 ```
 
-## Beads Task Management
+## Task Tracking
 
-Tasks are managed with `bd` (beads CLI):
+### With Linear (if MCP connected)
+
+Tasks are managed via Linear MCP tools:
+
+```
+list_issues(state=Todo)                          # Ready tasks (filter by empty blockedBy)
+get_issue(id=INT-14, includeRelations=true)      # Task details with dependencies
+save_issue(title=..., team=..., project=...)     # Create issue
+save_issue(id=INT-14, state="In Progress")       # Claim task
+save_issue(id=INT-14, state=Done)                # Close task
+save_issue(id=INT-15, blockedBy=[INT-14])        # Set dependency (append-only)
+save_comment(issueId=INT-14, body="...")          # Add session summary
+```
+
+### Without Linear (plan-file workflow)
+
+No task tracker needed. `/spec` writes plan files to `docs/plans/`. Execute directly from the plan:
 
 ```bash
-bd ready                    # Show tasks ready to work
-bd list                     # All open tasks
-bd show <id>                # Task details
-bd create --title="..." --type=task --priority=2 --parent <epic-id>
-bd update <id> --status=in_progress
-bd close <id>
-bd sync --flush-only        # Export to JSONL
+/spec "feature description"    # Writes docs/plans/<plan>.md
+# Read the plan, implement each section
+/finish-task                   # Tests, commit, PR (skips task tracking)
 ```
 
 Quality gate hooks enforce workflow discipline. See `hooks/` for implementation.

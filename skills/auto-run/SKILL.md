@@ -1,6 +1,6 @@
 ---
 name: auto-run
-description: "Autonomous dispatch-reconcile loop for batch task processing. Use with /auto-run --through <id> to execute tasks unattended. Requires beads tasks to exist. Supports --resume for checkpoint recovery and --skip-milestone-review."
+description: "Autonomous dispatch-reconcile loop for batch task processing. Use with /auto-run --through <id> to execute tasks unattended. Requires Linear MCP or tasks to exist. Supports --resume for checkpoint recovery and --skip-milestone-review."
 allowed-tools: Bash, Read, Glob, Grep, Write, Edit, Skill, Agent, AskUserQuestion
 ---
 
@@ -64,19 +64,14 @@ Write checkpoint JSON to `docs/auto-run-checkpoint.json` with:
 Determine which tasks are in-scope for this auto-run:
 
 **If `--through <task-id>`:**
-Walk the dependency graph backward from `<task-id>` to find all transitive blockers:
-```bash
-bd show <task-id>  # get BLOCKED BY list
-# Recursively resolve each blocker's blockers
-```
+Walk the dependency graph backward from `<task-id>` to find all transitive blockers. Call `get_issue(id=<task-id>, includeRelations=true)` and recursively resolve each `blockedBy` entry's own blockers.
+
 Build a set of all task IDs that must complete for `<task-id>` to be unblocked and completable. Include `<task-id>` itself. Store as `scope.task_ids` in checkpoint. Set `scope.mode` to "through" and `scope.target` to `<task-id>`.
 
-**If `--epic <epic-id>`:**
-List all tasks that are children/subtasks of this epic:
-```bash
-bd list --all | grep <epic-id>
-```
-Store all child task IDs as `scope.task_ids`. Set `scope.mode` to "epic" and `scope.target` to `<epic-id>`.
+**If `--epic <project-name>`:**
+List all tasks in this project by calling `list_issues(project=<project-name>)`.
+
+Store all issue IDs as `scope.task_ids`. Set `scope.mode` to "epic" and `scope.target` to `<project-name>`.
 
 **If `--only <id1> <id2> ...`:**
 Use exactly those task IDs. Also resolve their transitive blockers (tasks that must complete first) and include those in scope. Store as `scope.task_ids`. Set `scope.mode` to "only".
@@ -91,7 +86,7 @@ Auto-run scope: N tasks [list IDs]. Target: <task-id or epic-id or "all">
 
 ### First Dispatch
 
-1. Run `bd ready` to get available tasks
+1. Query ready tasks: call `list_issues(state=Todo)`, then for each call `get_issue(includeRelations=true)` and filter to those with empty `blockedBy` arrays
 2. Filter ready tasks to only those in `scope.task_ids` (if set; if null, use all)
 3. If no in-scope ready tasks:
    - Check if target task is already closed → exit with completion report
@@ -134,10 +129,7 @@ Frontend changes detected in <task-id> — Playwright browser verification will 
 **If no summary (worker may have failed):**
 1. Check the worker's return value for error information
 2. Mark as failed
-3. Create investigation task:
-   ```bash
-   bd create --title="Investigate: <task-id> failed" --type=task --priority=1 --parent <epic-id>
-   ```
+3. If Linear MCP is available, create investigation task: `save_issue(title="Investigate: <task-id> failed", team=<team>, priority=1, project=<project>)`
 
 Update checkpoint: move task from `in_progress` to `completed` (or `failed`).
 
@@ -150,18 +142,14 @@ After reconciliation, pull changes so subsequent dispatches see the latest code:
 **If `--sequential`:** No worktree prune needed (no worktrees created). Workers already committed directly to this branch, so `git pull` may not be necessary — but run it to sync with any remote changes:
 
 ```bash
-git checkout -- .beads/issues.jsonl 2>/dev/null
 git pull origin $(git branch --show-current) --rebase 2>/dev/null || true
-bd sync --import-only 2>/dev/null
 ```
 
 **If parallel (default):** Prune completed worktrees and pull the worker's merged changes:
 
 ```bash
 git worktree prune
-git checkout -- .beads/issues.jsonl 2>/dev/null
 git pull origin $(git branch --show-current)
-bd sync --import-only 2>/dev/null
 ```
 
 ### Step C — Check Limits
@@ -171,7 +159,7 @@ bd sync --import-only 2>/dev/null
 
 ### Step D — Dispatch Next Batch
 
-1. Run `bd ready`
+1. Query ready tasks (same pattern as First Dispatch: list_issues + get_issue filter)
 2. Filter to in-scope tasks only (if `scope.task_ids` is set in checkpoint)
 3. Calculate `available_slots = max_concurrent - current_in_progress_count`
 
@@ -253,7 +241,7 @@ REMAINING (if any):
 ═══════════════════════════════════════════
 ```
 
-4. Run `bd list` and `bd ready` to show final board state.
+4. If Linear MCP is available, call `list_issues` to show final board state.
 
 ## Checkpoint Schema
 
@@ -273,15 +261,15 @@ File: `docs/auto-run-checkpoint.json`
   },
   "scope": {
     "mode": "all|through|epic|only",
-    "target": "Proj-xyz",
-    "task_ids": ["Proj-abc", "Proj-def", "Proj-xyz"]
+    "target": "INT-14",
+    "task_ids": ["INT-12", "INT-13", "INT-14"]
   },
   "batch_number": 2,
   "session_count": 1,
   "tasks": {
-    "completed": [{ "id": "Proj-abc", "title": "...", "completed_at": "...", "batch": 1 }],
-    "failed": [{ "id": "Proj-xyz", "title": "...", "reason": "...", "attempts": 1 }],
-    "in_progress": [{ "id": "Proj-def", "title": "...", "dispatched_at": "...", "batch": 2 }]
+    "completed": [{ "id": "INT-12", "title": "...", "completed_at": "...", "batch": 1 }],
+    "failed": [{ "id": "INT-14", "title": "...", "reason": "...", "attempts": 1 }],
+    "in_progress": [{ "id": "INT-13", "title": "...", "dispatched_at": "...", "batch": 2 }]
   },
   "stats": {
     "total_dispatched": 4,
@@ -300,7 +288,7 @@ File: `docs/auto-run-checkpoint.json`
 
 ## Error Handling
 
-- **Failed tasks**: Create investigation tasks in beads, picked up in next dispatch cycle
+- **Failed tasks**: If Linear MCP available, create investigation issues; otherwise log and continue
 - **Circuit breaker**: Same task failing twice → skip and flag for human attention
-- **No beads CLI**: Exit with clear error — `bd` must be available
+- **No task tracker**: If Linear MCP is not available, exit with "No task tracker configured. Connect Linear MCP or use /dispatch manually."
 - **Checkpoint corruption**: If checkpoint can't be parsed, start fresh (warn user)
