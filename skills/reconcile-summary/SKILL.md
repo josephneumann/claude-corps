@@ -152,6 +152,24 @@ Call `save_issue(title="<discovered work>", team=<team>, project=<project>, prio
 
 If Linear MCP is not available, document all updates in the reconciliation report for manual action.
 
+## 6. Post Reconciliation Comment to Completed Task
+
+If Linear MCP is available, post a concise reconciliation summary as a comment on the **completed task's** Linear issue. This creates an audit trail visible in Linear's UI.
+
+Call `save_comment(issueId=<task-id>, body=<comment>)` with the following format:
+
+```
+**Reconciliation Summary**
+
+Divergences: <count> (<one-liner per divergence, or "None">)
+Tasks updated: <list of task-id: brief change, or "None">
+Tasks created: <list of task-id: title, or "None">
+Tasks closed: <list of task-id: reason, or "None">
+Remaining concerns: <brief list, or "None">
+```
+
+Keep it concise — this is a pointer for context, not the full report. Skip this step if there were zero divergences and zero task changes (nothing useful to record).
+
 ## 7. Report Reconciliation
 
 Output a reconciliation report:
