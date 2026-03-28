@@ -40,8 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null); MAIN=$(git worktree list 2>/dev/null | head -1 | awk '{print $1}'); if [ \"$TOPLEVEL\" != \"$MAIN\" ] && [ -n \"$MAIN\" ]; then echo 'export BEADS_NO_DAEMON=1' >> \"$CLAUDE_ENV_FILE\"; fi",
-            "statusMessage": "Configuring worktree environment..."
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-cleanup.sh",
+            "statusMessage": "Pruning stale worktrees..."
           }
         ]
       }

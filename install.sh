@@ -108,6 +108,19 @@ if [ -f "$SETTINGS_FILE" ]; then
         '.hooks.Stop = [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/hooks/reconcile-reminder.sh", "statusMessage": "Checking for unreconciled summaries..."}]}]' \
         "Stop reconcile-reminder hook"
 
+    # SessionStart: worktree-cleanup
+    register_hook "SessionStart" \
+        '.hooks.SessionStart[] | select(.hooks[].command | test("worktree-cleanup"))' \
+        '.hooks.SessionStart += [{"matcher": "", "hooks": [{"type": "command", "command": "~/.claude/hooks/worktree-cleanup.sh", "statusMessage": "Pruning stale worktrees..."}]}]' \
+        "SessionStart worktree-cleanup hook"
+
+    # Remove stale BEADS_NO_DAEMON hook if present
+    if jq -e '.hooks.SessionStart[] | select(.hooks[].command | test("BEADS_NO_DAEMON"))' "$SETTINGS_FILE" > /dev/null 2>&1; then
+        jq 'del(.hooks.SessionStart[] | select(.hooks[].command | test("BEADS_NO_DAEMON")))' \
+            "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+        echo "✓ Removed stale BEADS_NO_DAEMON hook"
+    fi
+
 else
     echo "⚠ No settings.json found at $SETTINGS_FILE — skipping hook registration"
     echo "  Create settings.json manually or run Claude Code to generate it"
