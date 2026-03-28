@@ -182,9 +182,20 @@ Which approach?
 
 **If user chooses "Break it down"** and Linear MCP is available:
 
-Create subtasks under the parent:
-- `save_issue(title="Subtask: <part 1>", team=<team>, parentId=<parent-task-id>, priority=<same>)`
-- `save_issue(title="Subtask: <part 2>", team=<team>, parentId=<parent-task-id>, priority=<same>)`
+Create subtasks under the parent, applying the quality gate — each subtask must have a structured description:
+
+```
+save_issue(
+  title="<descriptive subtask title>",
+  team=<team>,
+  parentId=<parent-task-id>,
+  priority=<same as parent>,
+  labels=<inherit from parent or assign>,
+  description="## Problem\n<what this subtask addresses>\n\n## Approach\n<how to implement>\n\n## Acceptance Criteria\n- [ ] ...\n\n## Target Files\n- ..."
+)
+```
+
+After each creation, run post-write validation: `get_issue(id=<id>)` — check for formatting artifacts and rewrite if needed.
 
 Unclaim the parent: `save_issue(id=<parent-task-id>, state=Todo)`
 

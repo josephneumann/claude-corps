@@ -144,13 +144,81 @@ Call `save_issue(id=<task-id>, state=Done)` + `save_comment(issueId=<task-id>, b
 **If a task needs new dependencies:**
 Call `save_issue(id=<task-id>, blockedBy=[<new-dependency-id>])`
 
-**If scope expanded and needs splitting:**
-Call `save_issue(title="<split-off work>", team=<team>, project=<project>, priority=3)` and optionally `save_issue(id=<new-id>, blockedBy=[<original-task-id>])`
-
-**If implementation discovered new required work:**
-Call `save_issue(title="<discovered work>", team=<team>, project=<project>, priority=3)`
+**If scope expanded or implementation discovered new work:**
+Do NOT create issues directly. Collect these into the batch proposal (Step 5.5).
 
 If Linear MCP is not available, document all updates in the reconciliation report for manual action.
+
+## 5.5. Batch Proposal: Discovered Work
+
+Collect all DISCOVERED WORK entries from the worker session summary (and any scope expansion items from divergence analysis above). Present them as a batch for user review:
+
+```
+## Discovered Work (from worker summaries)
+
+Worker <task-id> reported:
+1. "<title>" — Problem: ..., Approach: ..., AC: ...
+2. "<title>" — Problem: ..., Approach: ..., AC: ...
+
+---
+<N> items total. Review and select:
+
+a) Create all as Linear issues
+b) Select which to create (list numbers to include, e.g., "1, 3")
+c) Skip all — handle manually later
+```
+
+In `--yes` mode: auto-select option (a) to maintain autonomous execution.
+
+For each approved item, create the issue applying the **Quality Gate** (see below). Then run **Post-Write Validation**.
+
+If a DISCOVERED WORK entry has insufficient detail (missing Problem, Approach, or Acceptance Criteria), flag it: "Item N has insufficient detail for issue creation — skipping. Manual follow-up needed." Do not create a thin issue.
+
+### Quality Gate for `save_issue`
+
+Every `save_issue` call creating a new issue (no `id` parameter) must include:
+
+**Minimum description structure:**
+```markdown
+## Problem
+[What's wrong or what's needed — 2-3 sentences minimum]
+
+## Approach
+[How to fix/build it — specific enough for a worker to execute]
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+## Target Files
+- path/to/file.ext
+```
+
+**Required fields:** `title` (descriptive), `description` (meets structure above), `priority` (1-4), `labels` (at least one: Bug, Feature, Improvement, Refactor), `project`.
+
+**Formatting rules:** Write actual markdown with real line breaks. Never use `\n` escape sequences in description or body fields. Do not include XML tool syntax or string delimiters in content.
+
+### Post-Write Validation
+
+After every `save_issue` that creates or updates a description:
+
+1. Call `get_issue(id=<created-id>)` to read back the content
+2. Check for formatting artifacts: literal `\n` or `\\n`, XML tags (`</invoke>`, `<parameter>`), trailing `")` or `')`
+3. If artifacts found: rewrite with `save_issue(id=<id>, description="<corrected>")` — replace escaped newlines with actual newlines, strip artifacts
+
+## 5.6. Update Project Description
+
+If tasks were completed, created, or had significant status changes during this reconciliation, update the project description:
+
+1. Get current project: `get_project(query=<project-name>)`
+2. Generate a progress narrative:
+   - **Completed:** What has been accomplished (list completed tasks with one-line summaries)
+   - **In Progress:** What's actively being worked on
+   - **Remaining:** What's left in backlog, ordered by priority
+   - **Key Decisions:** Any architectural or scope decisions made during this round
+3. Update: `save_project(id=<project-id>, description="<progress narrative>")`
+
+Keep the description current — this is the entry point for understanding project state.
 
 ## 6. Post Reconciliation Comment to Completed Task
 
@@ -199,9 +267,9 @@ TASKS UPDATED
 - <task-id>: <brief description of change>
 - <task-id>: <brief description of change>
 
-TASKS CREATED
--------------
-<List any new tasks created>
+TASKS CREATED (via batch approval)
+-----------------------------------
+<List any new tasks created from discovered work, or "None — no items approved">
 
 - <task-id>: <title>
 

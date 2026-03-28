@@ -350,7 +350,7 @@ Reply with your choices (e.g., "1a, 2c"):
 
 Each response moves the finding to `fixed[]` (agent implements chosen approach), `dropped[]` (dismissed), or `deferred[task: <id>]` (task created for follow-up). The review does NOT proceed to re-review until all deferred items are resolved.
 
-**Autonomous context** (when multi-review runs inside `/finish-task` as a dispatched worker with no human available): skip `AskUserQuestion`. Instead, if Linear MCP is available, create issues for all deferred items via `save_issue` and log them as `deferred[task: <id>]`. If Linear is not available, log deferred items in the session summary for the orchestrator to see. Detection: if the session is a dispatched worker (running in a worktree), treat as autonomous.
+**Autonomous context** (when multi-review runs inside `/finish-task` as a dispatched worker with no human available): skip `AskUserQuestion`. Do NOT create Linear issues. Instead, log all deferred items in the session summary's DISCOVERED WORK section for orchestrator review during reconciliation. Use the structured format (Problem/Approach/Acceptance Criteria/Priority/Label/Target Files). Detection: if the session is a dispatched worker (running in a worktree), treat as autonomous.
 
 #### Phase 4: INFORMATIONAL batch resolution
 

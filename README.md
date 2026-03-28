@@ -158,7 +158,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/finish-task <id> [--direct]`** &mdash; Runs quality gates (tests must pass), commits changes, pushes to remote. In default mode: creates a PR, runs `/multi-review` (skipped for milestone-branch PRs &mdash; review happens at milestone level), merges. With `--direct`: skips PR/review entirely (used by sequential dispatch). In both modes: closes the task and outputs a session summary. Merge conflicts in worktree mode trigger a fail-fast stop &mdash; no retry loops.
 
-**`/reconcile-summary`** &mdash; Auto-discovers unreconciled summaries in `docs/session_summaries/`, cross-references summary claims against PR/CI evidence before trusting them, analyzes spec divergences, updates affected tasks in Linear (if connected), creates new issues for discovered work, closes obsoleted tasks. Supports `--yes` for autonomous operation.
+**`/reconcile-summary`** &mdash; Auto-discovers unreconciled summaries in `docs/session_summaries/`, cross-references summary claims against PR/CI evidence before trusting them, analyzes spec divergences, updates affected tasks in Linear (if connected), and closes obsoleted tasks. Discovered work from worker summaries is collected and proposed as a batch for user approval (batch-with-veto) &mdash; no issues are created without confirmation. Also updates the project description with current progress. Supports `--yes` for autonomous operation (auto-approves batch).
 
 **`/summarize-session <id>`** &mdash; Read-only progress snapshot. Does not commit, push, or close anything.
 

@@ -116,12 +116,20 @@ When the project state suggests ambiguity — multiple possible root causes, unc
 - Task descriptions reference "investigate", "debug", "figure out"
 - Stale branches from abandoned parallel work
 
-**If investigation is warranted** and Linear MCP is available, create investigation tasks:
+**If investigation is warranted** and Linear MCP is available, create investigation tasks with quality gate:
 
 ```
-save_issue(title="Investigate hypothesis A: <description>", team=<team>, project=<project>, priority=1)
-save_issue(title="Investigate hypothesis B: <description>", team=<team>, project=<project>, priority=1)
+save_issue(
+  title="Investigate: <hypothesis description>",
+  team=<team>,
+  project=<project>,
+  priority=1,
+  labels=["Bug"],
+  description="## Problem\n<what evidence suggests this hypothesis>\n\n## Approach\n<specific investigation steps>\n\n## Acceptance Criteria\n- [ ] Hypothesis confirmed or ruled out\n- [ ] Fix applied or follow-up task created\n\n## Target Files\n- <files to investigate>"
+)
 ```
+
+After creation, run post-write validation: `get_issue(id=<created-id>)` — check for formatting artifacts (literal `\n`, XML tags, trailing `")`) and rewrite if needed.
 
 Then recommend in Phase 5:
 

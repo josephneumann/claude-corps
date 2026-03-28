@@ -37,6 +37,8 @@ When using Linear, reference these workspace details:
 - **Hierarchy**: `parentId` on `save_issue` for sub-issues; Linear projects for grouping (projects are NOT issues)
 - **Agent delegation**: `delegate` field on `save_issue` to assign to named agents
 - **Comments**: `save_comment` for session summaries, reconciliation notes
+- **Issue creation authority**: Only orchestrator-facing skills (`/spec`, `/reconcile-summary`, `/orient`, `/auto-run`) may call `save_issue` to create new issues. Worker skills (`/finish-task`, `/multi-review`) must document discovered work in the session summary's DISCOVERED WORK section instead. The orchestrator proposes new issues for user approval at reconciliation boundaries.
+- **Quality gate**: Every `save_issue` creating a new issue must include: structured description (Problem/Approach/Acceptance Criteria/Target Files sections), priority, at least one label, and project. After creation, run post-write validation (`get_issue` to check for formatting artifacts).
 
 ## Critical Rule: Always Run `/finish-task`
 
