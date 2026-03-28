@@ -1,18 +1,18 @@
 ---
 name: reconcile-summary
-description: "Review a worker session summary and reconcile beads tasks with implementation reality. Use after a worker completes /finish-task to sync the task board with what was actually implemented. Invoked by orchestrator sessions, or with /reconcile-summary <task-id>."
+description: "Review a worker session summary and reconcile tasks with implementation reality. Use after a worker completes /finish-task to sync the task board with what was actually implemented. Invoked by orchestrator sessions, or with /reconcile-summary <task-id>."
 allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 ---
 
 # Reconcile Session Summary
 
-You are an orchestrating agent reviewing a completed worker session. Your job is to ensure the beads task board accurately reflects what was actually built, not just what was originally specified.
+You are an orchestrating agent reviewing a completed worker session. Your job is to ensure the task board accurately reflects what was actually built, not just what was originally specified.
 
 ## `--yes` Mode (Autonomous Operation)
 
 If `$ARGUMENTS` contains `--yes`, auto-answer ALL `AskUserQuestion` prompts:
 - **Which summary to process** → "All of them" (process all unreconciled summaries sequentially)
-- **Update PROJECT_SPEC.md or CLAUDE.md** → "No, beads only"
+- **Update PROJECT_SPEC.md or CLAUDE.md** → "No, task board only"
 - **Copy to clipboard** → "No, skip"
 - **Next action** → Skip prompt, return control to caller
 
@@ -37,8 +37,8 @@ If no argument, scan for unreconciled summaries (excludes `reconciled/` subdirec
 # Find summary files NOT in reconciled/ subdirectory
 find docs/session_summaries/ -maxdepth 1 -name "*.txt" -type f 2>/dev/null | head -10
 
-# Check which tasks were recently closed
-bd list --all 2>/dev/null | grep -i closed | head -10
+# If Linear MCP available, check recently closed tasks
+# list_issues(state=Done, limit=10, orderBy=updatedAt)
 ```
 
 ### Option C: User pastes summary
@@ -85,9 +85,7 @@ Once you have the summary content (from file or paste), extract:
 
 Do NOT trust session summaries blindly. Workers may have been under context pressure. Their summaries may be incomplete, inaccurate, or optimistic.
 
-```bash
-bd show <task-id>
-```
+If Linear MCP is available, call `get_issue(id=<task-id>, includeRelations=true)` to get the original task spec.
 
 ### 2a. Cross-Reference Claims Against Evidence
 
@@ -121,84 +119,38 @@ For each divergence documented by the worker, determine:
 
 ## 4. Review Related Tasks
 
-```bash
-# Show tasks that were blocked by the completed task
-bd show <task-id> | grep -A 10 "BLOCKS"
-
-# List all open tasks to check for ripple effects
-bd list --status=open
-```
-
-For each potentially affected task:
-
-```bash
-bd show <affected-task-id>
-```
+If Linear MCP is available:
+- The `get_issue` call from Step 2 already includes relations. Check the `blocks` array for tasks unblocked by this completion.
+- Call `list_issues(state=Todo)` and `list_issues(state="In Progress")` to see open tasks.
+- For each potentially affected task, call `get_issue(id=<affected-id>)` to review.
 
 Ask yourself:
 - Does this task's description assume something that's no longer true?
 - Does the implementation change how this task should be approached?
 - Are there new dependencies or constraints to document?
 
-## 5. Update Beads Tasks
+## 5. Update Tasks
 
-For each task that needs updating, use `bd update` to modify the description:
-
-```bash
-# Update task description to reflect new reality
-bd update <task-id> --description "$(cat <<'EOF'
-<updated description that reflects the actual implementation>
-
-## Updated Context
-This task was updated based on implementation of <completed-task-id>.
-
-Changes from original spec:
-- <change 1>
-- <change 2>
-
-New constraints/dependencies:
-- <constraint 1>
-EOF
-)"
-```
+If Linear MCP is available, update tasks to reflect reality:
 
 ### Common Updates
 
+**Update task description:**
+Call `save_issue(id=<task-id>, description="<updated description>")` or post a comment with `save_comment(issueId=<task-id>, body="Updated context from <completed-task-id>: <changes>")`
+
 **If a task is now obsolete:**
-```bash
-bd close <task-id> --reason="Obsoleted by implementation of <task-id>. <brief explanation>"
-```
+Call `save_issue(id=<task-id>, state=Done)` + `save_comment(issueId=<task-id>, body="Obsoleted by <task-id>. <explanation>")`
 
 **If a task needs new dependencies:**
-```bash
-# Execution-order dependency (task can't start until dependency finishes)
-# For parent-child containment, use: bd update <task-id> --parent <epic-id>
-bd dep add <task-id> <new-dependency-id>
-```
+Call `save_issue(id=<task-id>, blockedBy=[<new-dependency-id>])`
 
 **If scope expanded and needs splitting:**
-```bash
-bd create --title="<split-off work>" --type=task --priority=2 --parent <parent-epic-id>
-# Execution dependency on original — only if the split genuinely depends on it
-bd dep add <new-task-id> <original-task-id>
-```
+Call `save_issue(title="<split-off work>", team=<team>, project=<project>, priority=3)` and optionally `save_issue(id=<new-id>, blockedBy=[<original-task-id>])`
 
 **If implementation discovered new required work:**
-```bash
-bd create --title="<discovered work>" --type=task --priority=2 --parent <epic-id>
-# Add execution-order dependencies only if genuinely blocked:
-# bd dep add <new-task-id> <blocker-task-id>
-```
+Call `save_issue(title="<discovered work>", team=<team>, project=<project>, priority=3)`
 
-## 6. Sync Changes
-
-```bash
-bd sync
-```
-
-> **Note**: After `bd sync`, `.beads/issues.jsonl` may have uncommitted local changes.
-> If you need to `git pull` after this, use the safe pull pattern:
-> `git checkout -- .beads/issues.jsonl 2>/dev/null && git pull && bd sync --import-only 2>/dev/null`
+If Linear MCP is not available, document all updates in the reconciliation report for manual action.
 
 ## 7. Report Reconciliation
 
@@ -247,7 +199,7 @@ REMAINING CONCERNS
 
 TASK BOARD STATUS
 -----------------
-Ready tasks: <count from bd ready>
+Ready tasks: <count>
 Blocked tasks: <count>
 Total open: <count>
 
@@ -279,7 +231,7 @@ ls -la PROJECT_SPEC.md CLAUDE.md 2>/dev/null
 Use AskUserQuestion to confirm before modifying these files:
 
 **Question:** "Divergence '<title>' represents an architectural change. Update PROJECT_SPEC.md or CLAUDE.md?"
-- **Options:** "Yes, update docs" / "No, beads only" / "Ask me about each file"
+- **Options:** "Yes, update docs" / "No, task board only" / "Ask me about each file"
 
 ## 9. Copy Reconciliation Report (Optional)
 

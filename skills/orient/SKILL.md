@@ -116,11 +116,11 @@ When the project state suggests ambiguity — multiple possible root causes, unc
 - Task descriptions reference "investigate", "debug", "figure out"
 - Stale branches from abandoned parallel work
 
-**If investigation is warranted**, create investigation tasks in beads:
+**If investigation is warranted** and Linear MCP is available, create investigation tasks:
 
-```bash
-bd create --title="Investigate hypothesis A: <description>" --type=task --priority=1 --parent <epic-id>
-bd create --title="Investigate hypothesis B: <description>" --type=task --priority=1 --parent <epic-id>
+```
+save_issue(title="Investigate hypothesis A: <description>", team=<team>, project=<project>, priority=1)
+save_issue(title="Investigate hypothesis B: <description>", team=<team>, project=<project>, priority=1)
 ```
 
 Then recommend in Phase 5:
@@ -135,146 +135,75 @@ who will plan their approach before diving in."
 
 ## Phase 2: Task State Analysis
 
-### 2.1 Beads Overview
+### 2.1 Task Tracker Detection
 
-```bash
-bd status 2>/dev/null || echo "Beads not configured"
-```
+Check if Linear MCP is available by attempting to call `list_teams`. If available, use Linear for all task state analysis. If not, skip to Phase 3 — report on git state and plan files only.
 
 ### 2.2 Recently Completed Work
 
 ```bash
 # Recent git activity
 git log --oneline -15
-
-# Recently closed tasks
-bd list --status closed --sort closed --reverse --limit 10 2>/dev/null
 ```
+
+If Linear MCP is available, call `list_issues(state=Done, limit=10, orderBy=updatedAt)` to see recently closed tasks.
 
 Understand:
 - What was just completed
 - Patterns in recent work
 - Momentum and direction
 
-### 2.3 Epic Landscape
+### 2.3 Project Landscape
 
-Gather epic-level data. This is the primary strategic view.
+Gather project-level data. This is the primary strategic view.
 
-```bash
-# Epic completion status (shows % done, child counts)
-bd epic status 2>/dev/null
+If Linear MCP is available:
+- Call `list_projects(team=<team>)` to get all projects
+- For each project, call `list_issues(project=<project>)` to get issue counts by status
+- Compute completion percentage: Done count / total count
 
-# All open epics with priority
-bd list --type=epic 2>/dev/null
+Classify projects into two tiers based on priority:
+- **FOCUS** (Urgent/High): Projects to actively progress this session
+- **DEFERRED** (Normal/Low): Projects acknowledged but not for now
 
-# Full dependency graph across all open issues
-bd graph --all --compact 2>/dev/null
-```
+**If no projects exist**, skip sections 2.4-2.5. Instead query all ready tasks directly, then proceed to Phase 3.
 
-Classify epics into two tiers based on priority:
-- **FOCUS** (P0-P1): Epics to actively progress this session
-- **DEFERRED** (P2+): Epics acknowledged but not for now
+### 2.4 Primary Project Drill-Down
 
-**If no epics exist**, skip sections 2.4-2.5. Instead run `bd ready` and `bd list` directly, then proceed to Phase 3. The report will use the flat-task fallback template (see Phase 4 edge cases).
+Pick the single highest-priority FOCUS project that has ready tasks. Drill into it:
 
-### 2.4 Primary Epic Drill-Down
-
-Pick the single highest-priority FOCUS epic that has ready tasks. If multiple FOCUS epics share the same priority, pick the one with the most ready tasks. Drill into it:
-
-```bash
-# Task dependency graph within the epic
-bd graph <epic-id> 2>/dev/null
-
-# Ready tasks within this epic
-bd ready --parent <epic-id> 2>/dev/null
-
-# All children for full picture
-bd list --parent <epic-id> 2>/dev/null
-```
-
-Gather details for ready and blocked tasks in a single batch:
-
-```bash
-# Show details for all children (ready, blocked, in-progress) at once
-bd show <task-id-1> <task-id-2> <task-id-3> ...
-```
+If Linear MCP is available:
+- Call `list_issues(project=<project>)` to get all issues in this project
+- For each issue, call `get_issue(id, includeRelations=true)` to get dependency data
+- Build the dependency graph from `blocks`/`blockedBy` relations
+- Identify ready tasks (state=Todo + empty blockedBy)
 
 From the output, identify:
 - Critical path tasks (block the most downstream work)
 - Independent tasks (can run in parallel)
-- Research vs implementation tasks
 - What each blocked task is waiting on
-- What is already in-progress and who is working on it
+- What is already In Progress and who is assigned
 
-**If no epic has ready tasks**, note that all focus epics are blocked and show what they're waiting on.
+**If no project has ready tasks**, note that all focus projects are blocked and show what they're waiting on.
 
-### 2.5 Orphan Tasks
+### 2.5 Standalone Tasks
 
-Identify ready tasks not belonging to any epic:
+Identify ready tasks not belonging to any project:
 
-```bash
-# All ready tasks globally
-bd ready 2>/dev/null
-```
-
-Cross-reference this output against the tasks already seen under epics (from `bd list --parent` in 2.4 and `bd epic status` in 2.3). Any task that appears in `bd ready` but was not listed under any epic is an orphan. These should still appear in dispatch recommendations.
+If Linear MCP is available, call `list_issues(state=Todo)` and filter to those with no `project` field. These should still appear in dispatch recommendations.
 
 ### 2.6 Task Board Health Check
 
-Run these 4 diagnostic checks. Report findings but do NOT auto-fix — the orchestrator decides what to act on.
-
-**Check 1: Epic-as-Dependency Anti-Pattern**
-
-Get all epics:
-```bash
-bd list --type=epic 2>/dev/null
-```
-
-For each non-epic open task, run `bd show <task-id>` and inspect the DEPENDS ON / BLOCKED BY fields. If any dependency target is an epic ID (from the list above), flag it.
-
-Report format:
-```
-ANTI-PATTERN: <task-id> has blocks dependency on epic <epic-id>
-  This creates deadlock — task is blocked by epic, but epic can't close until task closes.
-  Fix (order matters!):
-    bd dep remove <task-id> <epic-id>
-    bd update <task-id> --parent <epic-id>
-  WARNING: bd dep remove nukes ALL relationship types. Run BEFORE --parent, not after.
-```
-
-**Check 2: Orphan Task Affinity**
-
-Extend the Phase 2.5 orphan detection. For each orphan task (ready task with no parent), compare its title and description keywords against existing epic titles/descriptions. If there's a clear match, suggest parenting.
-
-Report format:
-```
-ORPHAN: <task-id> "<title>" — likely belongs to epic <epic-id> "<epic title>"
-  Fix: bd update <task-id> --parent <epic-id>
-```
-
-**Check 3: File-Conflict Risk**
-
-For each pair of ready tasks, read their descriptions (from `bd show`). If both mention the same file paths and have no dependency between them, flag a conflict risk.
+**File-Conflict Risk**: For each pair of ready tasks, read their descriptions. If both mention the same file paths and have no dependency between them, flag a conflict risk.
 
 Report format:
 ```
 FILE CONFLICT RISK: <task-A> and <task-B> both target <file>
   No dependency between them — parallel dispatch may cause merge conflicts.
-  Fix: bd dep add <lower-priority-task> <higher-priority-task>
+  Fix: save_issue(id=<lower-priority-task>, blockedBy=[<higher-priority-task>])
 ```
 
-If no tasks document target files: "Target files not documented in task descriptions — cannot detect file conflicts."
-
-**Check 4: Redundant Transitive Dependencies**
-
-Parse `bd graph --all --compact` output. For each direct dependency edge A→C, check if there's an alternate path A→...→C through other nodes. If so, the direct edge is redundant noise.
-
-Report format:
-```
-REDUNDANT: <task-A> → <task-C> (path exists: A → B → C)
-  Fix: bd dep remove <task-A> <task-C>
-  WARNING: Only run if A and C have no parent-child relationship.
-```
+If no tasks document target files: "Target files not documented in issue descriptions — cannot detect file conflicts."
 
 ## Phase 3: Codebase Health Check
 
@@ -302,7 +231,7 @@ Check for:
 
 ## Phase 4: Synthesis & Recommendations
 
-After gathering all information, provide a structured orientation report. The report is organized as a **layered drill-down**: strategic overview → focused epic → actionable tasks.
+After gathering all information, provide a structured orientation report. The report is organized as a **layered drill-down**: strategic overview → focused project → actionable tasks.
 
 ```
 ===============================================
@@ -331,54 +260,47 @@ TASK BOARD HEALTH
 <List each finding with its fix commands>
 
 ═══════════════════════════════════════════════
-EPIC LANDSCAPE
+PROJECT LANDSCAPE
 ═══════════════════════════════════════════════
 
-▸ FOCUS EPICS (P0–P1) — progress these now
+▸ FOCUS PROJECTS (P0–P1) — progress these now
 ──────────────────────────────────────────────
-<For each P0-P1 epic, show:>
+<For each high-priority project, show:>
 
-  <epic-id>  <title>                          <status-icon> <completion%>
-             <total> children: <done>✓ <ready>○ <blocked>● <in-progress>◐
+  <project>  <title>                          <status-icon> <completion%>
+             <total> issues: <done>✓ <ready>○ <blocked>● <in-progress>◐
 
 <Example:>
-  bd-10  Implement auth system               ◐ 40%
-         10 children: 4✓ 3○ 2● 1◐
+  Product Showcase Vignettes                  ◐ 40%
+         6 issues: 0✓ 2○ 3● 1◐
 
-  bd-25  API rate limiting                    ○ 0%
-         5 children: 0✓ 2○ 3●
-
-▸ DEFERRED EPICS (P2+) — acknowledged, not now
+▸ DEFERRED PROJECTS (Normal/Low) — acknowledged, not now
 ──────────────────────────────────────────────
-<For each P2+ epic, single line:>
+<For each lower-priority project, single line:>
 
-  <epic-id>  <title>                          <completion%>
+  <project>  <title>                          <completion%>
 
-<Example:>
-  bd-40  Admin dashboard redesign            0%
-  bd-55  Migrate to new ORM                  15%
-
-▸ DEPENDENCY MAP — how epics relate
+▸ DEPENDENCY MAP — how projects relate
 ──────────────────────────────────────────────
-<Include the output of `bd graph --all --compact` here.>
-<If no inter-epic dependencies, write: "No cross-epic dependencies defined.">
+<Build from get_issue(includeRelations) data across all projects.>
+<If no cross-project dependencies: "No cross-project dependencies defined.">
 
 ═══════════════════════════════════════════════
-PRIMARY EPIC: <epic-id> — <epic title>
+PRIMARY PROJECT: <project> — <project title>
 ═══════════════════════════════════════════════
 
-<This section drills into the single highest-priority FOCUS epic
+<This section drills into the single highest-priority FOCUS project
 that has ready tasks. Show its full task structure.>
 
 ▸ TASK DEPENDENCY GRAPH
 ──────────────────────────────────────────────
-<Include the output of `bd graph <epic-id>` here.>
-<This shows execution layers — layer 0 can start immediately,
+<Built from get_issue(includeRelations) data for all issues in this project.>
+<Shows execution layers — layer 0 can start immediately,
 higher layers depend on lower layers.>
 
 ▸ READY TASKS — can start immediately
 ──────────────────────────────────────────────
-<For each ready task in this epic:>
+<For each ready task in this project:>
 
   <task-id>  <title>
              Type: <feature/task/research>  Priority: <P0-P4>
@@ -386,14 +308,14 @@ higher layers depend on lower layers.>
 
 ▸ IN PROGRESS — already claimed
 ──────────────────────────────────────────────
-<For each in-progress task in this epic. Omit section if none.>
+<For each in-progress task in this project. Omit section if none.>
 
   <task-id>  <title>
              Assignee: <assignee or "unassigned">
 
 ▸ BLOCKED TASKS — waiting on dependencies
 ──────────────────────────────────────────────
-<For each blocked task in this epic:>
+<For each blocked task in this project:>
 
   <task-id>  <title>
              Waiting on: <list of blocking task-ids and titles>
@@ -402,9 +324,9 @@ higher layers depend on lower layers.>
 DISPATCH RECOMMENDATION
 ═══════════════════════════════════════════════
 
-▸ ORPHAN TASKS — ready work outside any epic
+▸ STANDALONE TASKS — ready work outside any project
 ──────────────────────────────────────────────
-<Any ready tasks not belonging to an epic. Omit if none.>
+<Any ready tasks not belonging to a project. Omit if none.>
 
   <task-id>  <title>
              Type: <type>  Priority: <P0-P4>
@@ -414,28 +336,28 @@ DISPATCH RECOMMENDATION
 The following tasks can be executed simultaneously:
 
 Stream 1: <task-id> - <title>
-  Epic: <epic-id> - <epic title> (or "orphan" if no parent epic)
+  Project: <project> (or "standalone" if no project)
   Priority: <P0-P4>  Type: <feature/task/research>
   Rationale: <why this should be worked on>
   Blocks: <what this unblocks when done>
   Start command: /start-task <task-id>
 
 Stream 2: <task-id> - <title>
-  Epic: <epic-id> - <epic title> (or "orphan" if no parent epic)
+  Project: <project> (or "standalone" if no project)
   Priority: <P0-P4>  Type: <feature/task/research>
   Rationale: <why this should be worked on>
   Blocks: <what this unblocks when done>
   Start command: /start-task <task-id>
 
 Stream 3: <task-id> - <title>
-  Epic: <epic-id> - <epic title> (or "orphan" if no parent epic)
+  Project: <project> (or "standalone" if no project)
   Priority: <P0-P4>  Type: <feature/task/research>
   Rationale: <why this should be worked on>
   Blocks: <what this unblocks when done>
   Start command: /start-task <task-id>
 
-<Streams may draw from the primary epic, other focus epics, or orphan tasks.
-Prioritize tasks from the primary epic but include tasks from other focus epics
+<Streams may draw from the primary project, other focus projects, or standalone tasks.
+Prioritize tasks from the primary project but include tasks from other focus projects
 if they are independent and parallelizable.>
 
 BLOCKERS & RISKS
@@ -460,36 +382,16 @@ END ORIENTATION REPORT
 
 Handle these gracefully:
 
-- **No epics exist**: Skip the EPIC LANDSCAPE and PRIMARY EPIC sections entirely. Replace them with a flat task section:
-  ```
-  ═══════════════════════════════════════════════
-  TASK OVERVIEW (no epics defined)
-  ═══════════════════════════════════════════════
-  Total open: <count>
-  Ready (no blockers): <count>
-  In progress: <count>
-  ```
-  Then proceed directly to DISPATCH RECOMMENDATION, omitting the "Epic:" line from each stream.
-
-- **No dependencies defined**: Show the DEPENDENCY MAP section but write "No cross-epic dependencies defined. Consider adding dependencies with `bd dep add`."
-- **No ready tasks in primary epic**: Show the PRIMARY EPIC section with only IN PROGRESS and BLOCKED TASKS. Note what needs to complete before work can proceed.
-- **All epics same priority**: Show all as FOCUS. Add a note: "All epics are the same priority — consider differentiating with `bd update <id> --priority <N>`."
-- **Primary epic has no children**: Show it in FOCUS EPICS but note "No tasks decomposed yet — consider breaking down with `bd create --parent <epic-id>`."
+- **No projects exist**: Skip the PROJECT LANDSCAPE and PRIMARY PROJECT sections. Show a flat task overview instead, then proceed directly to DISPATCH RECOMMENDATION.
+- **No dependencies defined**: Show the DEPENDENCY MAP section but write "No cross-project dependencies defined."
+- **No ready tasks in primary project**: Show the PRIMARY PROJECT section with only IN PROGRESS and BLOCKED TASKS. Note what needs to complete before work can proceed.
+- **No task tracker**: Show only git state, plan files, and code health. Skip all task board sections.
 
 ## Phase 4.5: Task Visualization
 
-If the task board has any tasks, generate an interactive HTML visualization as a companion artifact to this report.
+If Linear MCP is available and tasks exist, note: "View your task board in Linear's UI for interactive dependency visualization."
 
-**Execution**: Follow the `/task-viz --no-open` steps — gather task data, build Mermaid DAG, generate HTML, write to `~/.agent/diagrams/task-board.html`. Do NOT open in browser.
-
-**Output**: After the orientation report, print:
-```
-Task board: ~/.agent/diagrams/task-board.html
-```
-
-**Skip conditions**:
-- No tasks exist → skip silently
-- `bd` CLI unavailable → skip silently
+Skip if no task tracker is configured.
 
 ## Phase 5: Ready for Action
 

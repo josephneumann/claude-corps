@@ -348,9 +348,9 @@ After auto-fixes are applied, present ALL deferred findings in a SINGLE `AskUser
 Reply with your choices (e.g., "1a, 2c"):
 ```
 
-Each response moves the finding to `fixed[]` (agent implements chosen approach), `dropped[]` (dismissed), or `deferred[task: <id>]` (beads task created). The review does NOT proceed to re-review until all deferred items are resolved.
+Each response moves the finding to `fixed[]` (agent implements chosen approach), `dropped[]` (dismissed), or `deferred[task: <id>]` (task created for follow-up). The review does NOT proceed to re-review until all deferred items are resolved.
 
-**Autonomous context** (when multi-review runs inside `/finish-task` as a dispatched worker with no human available): skip `AskUserQuestion`. Instead, auto-create beads tasks for all deferred items and log them as `deferred[task: <id>]`. Report the deferred count in the session summary for the orchestrator to see. Detection: if the session is a dispatched worker (running in a worktree), treat as autonomous.
+**Autonomous context** (when multi-review runs inside `/finish-task` as a dispatched worker with no human available): skip `AskUserQuestion`. Instead, if Linear MCP is available, create issues for all deferred items via `save_issue` and log them as `deferred[task: <id>]`. If Linear is not available, log deferred items in the session summary for the orchestrator to see. Detection: if the session is a dispatched worker (running in a worktree), treat as autonomous.
 
 #### Phase 4: INFORMATIONAL batch resolution
 

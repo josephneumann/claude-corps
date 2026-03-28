@@ -19,7 +19,7 @@
       "license": "MIT",
       "keywords": ["orchestration", "parallel", "agents", "branches", "autonomous", "multi-agent"],
       "category": "development-workflow",
-      "tags": ["agent-teams", "task-management", "code-review", "beads"]
+      "tags": ["agent-teams", "task-management", "code-review", "linear"]
     }
   ]
 }

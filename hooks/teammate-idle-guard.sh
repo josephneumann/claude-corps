@@ -2,8 +2,8 @@
 # Blocks teammates from going idle without a session summary.
 # Used as a TeammateIdle hook — fires when any teammate is about to go idle.
 #
-# Only enforces for beads-task teammates (name contains hyphen like "Project-abc").
-# Non-beads teammates (research, investigative, manually-spawned) pass through.
+# Only enforces for task-assigned teammates (name contains hyphen like "INT-14").
+# Non-task teammates (research, investigative, manually-spawned) pass through.
 #
 # Exit 0 = allow idle, Exit 2 = block with feedback on stderr
 
@@ -13,7 +13,7 @@ TEAMMATE_NAME=$(echo "$INPUT" | jq -r '.teammate_name // empty')
 # Safety: can't determine teammate → allow idle
 [ -n "$TEAMMATE_NAME" ] || exit 0
 
-# Only enforce for beads-task teammates (name contains hyphen like "Project-abc")
+# Only enforce for task-assigned teammates (name contains hyphen like "INT-14")
 echo "$TEAMMATE_NAME" | grep -q '-' || exit 0
 
 # Find main repo root (summaries live there, not in worktrees)

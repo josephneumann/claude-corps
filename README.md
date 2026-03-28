@@ -91,7 +91,7 @@ graph LR
 
 | Phase | What happens |
 |-------|-------------|
-| **Plan** | `/product-review` challenges scope and approach (optional &mdash; use DESIGN mode for UI features). `/spec` refines ideas via Q&A, researches the codebase with parallel agents, writes a plan to `docs/plans/`, and decomposes into tasks with dependencies. `/spec --deepen` adds depth with targeted parallel research. |
+| **Plan** | `/product-review` challenges scope and approach (optional &mdash; use DESIGN mode for UI features). `/spec` refines ideas via Q&A, researches the codebase with parallel agents, writes a plan to `docs/plans/`, and optionally decomposes into Linear issues. `/spec --deepen` adds depth with targeted parallel research. |
 | **Execute** | `/orient` surveys the project. `/dispatch` spawns workers &mdash; parallel (worktree-isolated, default) or sequential (`--sequential`, direct on branch). Each worker implements, tests, and writes a session summary. `/auto-run` does this in a loop until all tasks are done. |
 | **Review** | `/multi-review` runs parallel specialized code review. `/reconcile-summary` syncs worker output with the task board. |
 
@@ -106,7 +106,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 | Skill | Purpose |
 |-------|---------|
 | `/product-review` | Product-taste review with interrogation mode, assumption mapping, and devil's advocate challenges. EXPAND / HOLD / REDUCE / DESIGN modes |
-| `/spec` | Research, plan, decompose into tasks with dependencies |
+| `/spec` | Research, plan, optionally decompose into Linear issues |
 | `/spec --deepen` | Enhance an existing plan with parallel research |
 
 ### Execution
@@ -114,7 +114,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 | Skill | Purpose |
 |-------|---------|
 | `/orient` | Survey project, identify parallel work streams |
-| `/start-task <id>` | Claim task, create branch, gather context |
+| `/start-task <id>` | Claim task, create branch, gather context (requires Linear MCP for task tracking) |
 | `/finish-task <id> [--direct]` | Tests, commit, PR, code review, browser verification, session summary, close. `--direct` skips PR/review for sequential tasks. |
 
 ### Orchestration
@@ -123,7 +123,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 |-------|---------|
 | `/dispatch [--sequential]` | Spawn workers: parallel (worktree-isolated, default) or sequential (direct on branch) |
 | `/auto-run [--sequential]` | Autonomous dispatch-reconcile loop. `--sequential` for dependent task chains. |
-| `/reconcile-summary` | Sync worker output with task board |
+| `/reconcile-summary` | Sync worker output with task board (requires Linear MCP) |
 | `/summarize-session <id>` | Mid-session progress checkpoint (read-only) |
 
 ### Quality
@@ -144,7 +144,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/product-review`** &mdash; Product-taste review that challenges scope and approach before committing engineering effort. Interrogation mode provides recommended answers for every question (grill-me style). Includes status quo analysis, assumption mapping across Value/Usability/Viability/Feasibility with risk prioritization, devil's advocate challenges (steel-man opposition, kill criteria), and alternatives analysis. Four modes: EXPAND (dream big), HOLD (maximum rigor), REDUCE (strip to essentials), DESIGN (UX-first &mdash; user journeys, interaction patterns, responsive strategy). Run before `/spec` or standalone.
 
-**`/spec`** &mdash; Interactive refinement (Phase 0) moves from a vague idea to clear requirements. Runs parallel research agents (repo-research-analyst, spec-flow-analyzer, and conditionally best-practices-researcher and framework-docs-researcher). Writes plan to `docs/plans/`, then decomposes into tasks via `bd create --parent` (containment) and `bd dep add` (execution ordering).
+**`/spec`** &mdash; Interactive refinement (Phase 0) moves from a vague idea to clear requirements. Runs parallel research agents (repo-research-analyst, spec-flow-analyzer, and conditionally best-practices-researcher and framework-docs-researcher). Writes plan to `docs/plans/`, then optionally decomposes into Linear issues with parent-child hierarchy and blocking relations (requires Linear MCP).
 
 **`/spec --deepen`** &mdash; Finds the most recent plan in `docs/plans/`, discovers and applies all available skills, runs parallel research agents per-section, launches all review agents, and merges findings back into the plan. Updates tasks accordingly.
 
@@ -158,7 +158,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/finish-task <id> [--direct]`** &mdash; Runs quality gates (tests must pass), commits changes, pushes to remote. In default mode: creates a PR, runs `/multi-review` (skipped for milestone-branch PRs &mdash; review happens at milestone level), merges. With `--direct`: skips PR/review entirely (used by sequential dispatch). In both modes: closes the task and outputs a session summary. Merge conflicts in worktree mode trigger a fail-fast stop &mdash; no retry loops.
 
-**`/reconcile-summary`** &mdash; Auto-discovers unreconciled summaries in `docs/session_summaries/`, cross-references summary claims against PR/CI evidence before trusting them, analyzes spec divergences, updates affected tasks, creates new tasks for discovered work, closes obsoleted tasks. Supports `--yes` for autonomous operation.
+**`/reconcile-summary`** &mdash; Auto-discovers unreconciled summaries in `docs/session_summaries/`, cross-references summary claims against PR/CI evidence before trusting them, analyzes spec divergences, updates affected tasks in Linear (if connected), creates new issues for discovered work, closes obsoleted tasks. Supports `--yes` for autonomous operation.
 
 **`/summarize-session <id>`** &mdash; Read-only progress snapshot. Does not commit, push, or close anything.
 
@@ -191,16 +191,16 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 /auto-run
 
 # Sequential — for dependent task chains
-/auto-run --sequential --through Proj-xyz
+/auto-run --sequential --through INT-14
 
 # Everything needed to complete a specific task (resolves dependency graph)
-/auto-run --through Proj-xyz
+/auto-run --through INT-14
 
-# All tasks in an epic
-/auto-run --epic Proj-abc
+# All tasks in a project
+/auto-run --epic "Product Showcase Vignettes"
 
 # Specific tasks plus their blockers
-/auto-run --only Proj-abc Proj-def
+/auto-run --only INT-15 INT-16
 
 # With limits
 /auto-run --max-batches 3 --max-hours 4 --max-concurrent 5
@@ -212,7 +212,7 @@ For runs that outlast a single context window, the wrapper script provides proce
 
 ```bash
 ~/.claude/scripts/auto-run.sh --max-hours 8
-~/.claude/scripts/auto-run.sh --through Proj-xyz --max-hours 4
+~/.claude/scripts/auto-run.sh --through INT-14 --max-hours 4
 ```
 
 The wrapper uses `expect` to allocate a pty for interactive Claude sessions, sends `/auto-run --resume` into each fresh Claude session, and checks task state between iterations. State is checkpointed to `docs/auto-run-checkpoint.json` and survives restarts.
@@ -355,13 +355,13 @@ project-root/
 
 ## Workflow Examples
 
-### Single-Session
+### Single-Session (with Linear)
 
 ```bash
 /orient
-/start-task Project-abc
+/start-task INT-14
 # implement...
-/finish-task Project-abc
+/finish-task INT-14
 ```
 
 ### Multi-Agent Parallel (independent tasks)
@@ -374,23 +374,23 @@ project-root/
 /reconcile-summary
 ```
 
-### Sequential (dependent tasks)
+### Sequential (dependent tasks, with Linear)
 
 ```bash
 git checkout milestone/m4
-/dispatch --sequential task-1 task-2 task-3
+/dispatch --sequential INT-14 INT-15 INT-16
 # Tasks execute one at a time on the branch — each sees the previous task's commits
 # No worktrees, no PRs per task. Review at milestone level.
 ```
 
-### Fully Autonomous
+### Fully Autonomous (requires Linear)
 
 ```bash
 # Interactive (parallel)
-/auto-run --through target-task-id
+/auto-run --through INT-14
 
 # Interactive (sequential — for dependent chains)
-/auto-run --sequential --through target-task-id
+/auto-run --sequential --through INT-14
 
 # Unattended (hours-long, restarts across context exhaustions)
 ~/.claude/scripts/auto-run.sh --max-hours 8
@@ -419,7 +419,6 @@ Global workflow config loads automatically from `~/.claude/CLAUDE.md`. Each proj
 
 ```bash
 cd /path/to/your/project
-bd init                    # Initialize task management
 claude
 > /orient                  # Start working
 ```
@@ -429,6 +428,39 @@ Your project `CLAUDE.md` should include: project summary, dev commands (`uv run 
 Optionally, create a `.claude/review.json` to configure risk tiers and reviewer overrides. Framework-specific reviewers auto-detect from changed files — no config needed. See [`docs/examples/review-fullstack.json`](docs/examples/review-fullstack.json) for an example.
 
 For security-conscious projects: add `"include": ["security-sentinel"]` to your review config for always-on security review, and copy [`docs/examples/security-checks.yml`](docs/examples/security-checks.yml) to `.github/workflows/` for CI/CD SAST and container scanning.
+
+---
+
+## Working Without Linear
+
+All skills work without a task tracker. Here's what changes:
+
+| Skill | Without Linear | With Linear |
+|-------|---------------|-------------|
+| `/spec` | Writes plan file to `docs/plans/` | Writes plan file + creates Linear issues with dependencies |
+| `/orient` | Reads git state, plan files, code health | Reads git state + Linear project board with full task graph |
+| `/dispatch` | N/A (run tasks manually from plan) | Spawns workers from ready issues, delegates via Linear |
+| `/start-task` | N/A (start manually, no task tracking) | Claims issue, tracks status, gathers context from issue |
+| `/finish-task` | Tests, commit, PR, session summary | Tests, commit, PR, session summary + closes Linear issue |
+| `/auto-run` | N/A (manual workflow) | Autonomous dispatch-reconcile loop |
+| `/multi-review` | Full parallel code review | Full parallel code review |
+| `/product-review` | Full product review | Full product review |
+| `/milestone-review` | Full iterative review-fix | Full iterative review-fix |
+
+**Without Linear, the workflow is:**
+```bash
+/spec "your feature"          # Writes docs/plans/<plan>.md
+# Read the plan, implement each section
+/finish-task                  # Tests, commit, PR (skips task tracking)
+```
+
+**With Linear, the workflow is:**
+```bash
+/spec "your feature"          # Writes plan + creates Linear issues
+/orient                       # Reads Linear board, identifies parallel streams
+/dispatch --count 3           # Spawns 3 parallel workers from ready issues
+/reconcile-summary            # Syncs worker results back to Linear
+```
 
 ---
 
@@ -442,9 +474,18 @@ Claude Code runs as a single agent. claude-corps adds orchestration &mdash; mult
 
 Yes. `/auto-run` with the wrapper script (`~/.claude/scripts/auto-run.sh`) runs for hours, restarting Claude when context is exhausted. State is checkpointed and restored across restarts. PRs are created but never auto-merged &mdash; you review when ready.
 
-### Do I need beads?
+### Do I need Linear?
 
-Yes. [beads](https://github.com/josephneumann/beads) (`bd`) is the task management backend. Skills use it for task tracking, dependencies, dispatch, and coordination. Run `bd init` in your project to set up.
+No. Linear is optional. Without it, `/spec` writes plan files to `docs/plans/` and you execute from them directly. All planning, review, and quality skills work without any task tracker.
+
+With [Linear MCP](https://mcp.linear.app/mcp) connected, skills automatically create issues, track status, manage dependencies, and coordinate parallel workers. Add it with:
+```bash
+claude mcp add --transport http linear-server https://mcp.linear.app/mcp
+```
+
+### Can I use this without any task tracker?
+
+Yes. All skills degrade gracefully. `/spec` produces plan files. `/orient` surveys git state and code. `/multi-review` runs full review. `/finish-task` still does tests, commit, and PR. The orchestration skills (`/dispatch`, `/auto-run`) require Linear for task discovery, but you can always run tasks manually.
 
 ### What is the review config?
 
@@ -473,7 +514,7 @@ Use `--sequential` when tasks depend on each other (Phase 1 must complete before
 | Tool | What It Does | Relationship |
 |------|-------------|--------------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Anthropic's agentic coding CLI | **Required** &mdash; claude-corps extends it |
-| [beads](https://github.com/josephneumann/beads) | Task management CLI with dependencies | **Required** &mdash; skills use `bd` for task tracking |
+| [Linear](https://linear.app) + [MCP](https://mcp.linear.app/mcp) | Task tracking and project management | **Optional** &mdash; skills use Linear MCP for task tracking when connected |
 | [Claude Squad](https://github.com/smtg-ai/claude-squad) | Manage multiple terminal Claude agents | Alternative approach to multi-agent |
 | [Aider](https://github.com/Aider-AI/aider) | AI pair programming in your terminal | Different paradigm (pair vs team) |
 
@@ -484,9 +525,16 @@ Use `--sequential` when tasks depend on each other (Phase 1 must complete before
 ### Required
 
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** &mdash; Anthropic's CLI for Claude
-- **[beads](https://github.com/josephneumann/beads)** (`bd`) &mdash; Task management with dependencies. Run `bd init` in your project.
 - **git** &mdash; With worktree support (standard in modern git)
 - **[gh](https://cli.github.com/)** &mdash; GitHub CLI for PR creation. Install: `brew install gh`
+
+### For Task Tracking (Optional)
+
+- **[Linear MCP](https://mcp.linear.app/mcp)** &mdash; Connects Linear project management to Claude Code for automatic issue creation, status tracking, and dependency management. Add with:
+  ```bash
+  claude mcp add --transport http linear-server https://mcp.linear.app/mcp
+  ```
+  Then run `/mcp` in Claude Code to authenticate via OAuth. Without Linear, all skills still work &mdash; you just manage tasks manually from plan files.
 
 ### For Frontend Browser Testing (Optional)
 

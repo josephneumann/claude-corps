@@ -2,10 +2,10 @@
 # Blocks task completion without a session summary.
 # Used as a TaskCompleted hook — fires when a task is marked completed.
 #
-# Uses teammate_name (which is the beads task ID set by /dispatch) rather than
+# Uses teammate_name (which is the task ID set by /dispatch) rather than
 # the Agent Teams internal numeric task_id.
 #
-# Only enforces for beads-task teammates (name contains hyphen like "Project-abc").
+# Only enforces for task-assigned teammates (name contains hyphen like "INT-14").
 # If teammate_name is absent (lead's own task, or non-team), allows completion.
 #
 # Exit 0 = allow completion, Exit 2 = block with feedback on stderr

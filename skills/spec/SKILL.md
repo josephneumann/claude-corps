@@ -362,22 +362,19 @@ Key cognitive patterns to apply throughout:
 
 Amend plan with all findings. Update Plan Review Summary.
 
-### Phase 3: Decompose into Beads
+### Phase 3: Decompose into Linear Issues (Optional)
 
-Check if beads is available:
-```bash
-bd list 2>/dev/null
-```
+Check if Linear MCP is available (test: can you call `list_teams`?).
 
-**If `bd` is not available (command fails):**
-Skip decomposition silently. Set `decomposed = false`. Proceed to Phase 4.
+**If Linear MCP is not available:**
+Skip decomposition silently. Set `decomposed = false`. The plan file is the deliverable. Proceed to Phase 4.
 
-**If `bd` is available:**
+**If Linear MCP is available:**
 Use **AskUserQuestion**:
 
-**Question:** "Decompose this plan into beads tasks for tracking and dispatch?"
+**Question:** "Decompose this plan into Linear issues for tracking and dispatch?"
 **Options:**
-- "Yes, decompose into tasks"
+- "Yes, create Linear issues"
 - "No, plan only"
 - "Execute directly — implement this plan now"
 
@@ -385,42 +382,36 @@ Use **AskUserQuestion**:
 Set `decomposed = "execute"`. Proceed to Phase 4.
 
 **If user selects "Yes":**
-Set `decomposed = true`. Create tasks:
+Set `decomposed = true`. Create issues in Linear:
 
-```bash
-# Create epics (top-level containers)
-bd create "<epic>" --type epic --priority <P1/P2/P3> --description "<description>"
+**Dedup check first:** Before creating any issue, call `list_issues(project=<project>, query=<title>)` to check if an issue with this title already exists. Skip creation if found and log "Issue already exists: <title>".
 
-# Create features and tasks WITH parent assignment (--parent = containment, not blocking)
-bd create "<feature>" --type feature --priority <P1/P2/P3> --parent <epic-id> --description "<description>"
-bd create "<task>" --type task --priority <P1/P2/P3> --parent <epic-id> --description "<description>"
+```
+# Create or find the project
+save_project(name="<project name>", addTeams=[<team>])
 
-# Wire execution-order dependencies BETWEEN SIBLING TASKS ONLY
-# (task A must finish before task B can start — never use this for epic→task)
-bd dep add <blocked-task> <blocking-task>
+# Create issues within the project
+save_issue(title="<task>", team=<team>, project=<project>, priority=<1-4>, description="<description>")
 
-# Validate no circular dependencies
-bd dep cycles 2>/dev/null
+# Set parent-child relationships (parentId = containment)
+save_issue(id=<child-id>, parentId=<parent-id>)
 
-# Sync and display
-bd sync
-bd list
-bd ready
+# Wire execution-order dependencies between sibling tasks
+save_issue(id=<blocked-task>, blockedBy=[<blocking-task>])
+
+# Display created issues
+list_issues(project=<project>)
 ```
 
 #### Task Board Rules
 
-> **`--parent`** = "this task belongs to this epic" (containment). Used at creation time.
-> **`bd dep add`** = "this task cannot start until that task finishes" (execution ordering). Used between sibling tasks at the same level.
-> **NEVER** use `bd dep add` to associate a task with its epic. That creates a deadlock.
+> **`parentId`** = "this issue is a sub-issue of that one" (containment).
+> **`blockedBy`/`blocks`** = "this issue cannot start until that one finishes" (execution ordering). Append-only — cannot remove via MCP.
+> **Projects** = top-level grouping. Projects are NOT issues — they can't have blockers or be claimed.
 
-> **`bd dep remove` trap:** Removes ALL relationship types between two IDs, including parent-child. If fixing a misplaced dependency, remove the dep FIRST, then set `--parent`. Never reverse this order.
-
-> **Target files:** Include a `## Target Files` line in each task description listing the primary files the task will create or modify. This enables file-conflict detection during dispatch.
+> **Target files:** Include a `## Target Files` section in each issue description listing the primary files the task will create or modify. This enables file-conflict detection during dispatch.
 
 > **No transitive edges:** If A depends on B and B depends on C, do NOT also add A→C. Only direct edges.
-
-> **No hardcoded migration/revision numbers:** Use "next available" in descriptions. Workers determine the actual number at implementation time after rebasing.
 
 **If user selects "No":**
 Set `decomposed = false`. Proceed to Phase 4.
@@ -466,7 +457,7 @@ Engineering and design reviews ran in Phase 2.5. For a deeper dive, run `/plan-e
 2. **Review the plan** — Run `/multi-review` for specialized feedback
 3. **Create GitHub issue** — `gh issue create --title "<type>: <title>" --body-file <plan_path>`
 4. **Simplify** — Reduce detail level
-5. **Decompose now** — Create beads tasks from this plan
+5. **Decompose now** — Create Linear issues from this plan
 6. **Execute now** — Implement the plan directly in this session
 
 ---
@@ -531,25 +522,22 @@ Add Enhancement Summary at top: date, sections enhanced, agents used, key improv
 
 ### Step 8: Update Beads Tasks
 
-```bash
-bd update <id> --description "<enhanced description>"    # Refined tasks
-bd create "<title>" --type task --parent <epic-id> --description "<desc>"  # New tasks (always assign parent)
-bd close <id> --reason="Obsoleted during deepening"      # Obsolete tasks
-bd sync
+If Linear MCP is available:
+```
+save_issue(id=<id>, description="<enhanced description>")           # Refined tasks
+save_issue(title="<title>", team=<team>, project=<project>)         # New tasks
+save_issue(id=<id>, state=Done) + save_comment(body="Obsoleted")    # Obsolete tasks
 ```
 
 ### Step 9: Post-Enhancement Menu
 
-Check if beads tasks exist:
-```bash
-bd list 2>/dev/null
-```
+Check if Linear issues exist for this plan (call `list_issues(project=<project>)` if Linear MCP available).
 
 Use **AskUserQuestion**:
 
 For a deeper review after deepening, run `/plan-eng-review` or `/plan-design-review` standalone.
 
-**If beads tasks exist:**
+**If Linear issues exist:**
 
 **Question:** "Plan deepened. What next?"
 
@@ -560,12 +548,12 @@ For a deeper review after deepening, run `/plan-eng-review` or `/plan-design-rev
 4. **Run `/start-task <id>`** — Begin a specific task
 5. **Deepen further** — Another round on specific sections
 
-**If no beads tasks exist:**
+**If no Linear issues exist:**
 
 **Question:** "Plan deepened. What next?"
 
 **Options:**
 1. **View diff** — `git diff [plan_path]`
 2. **Run `/multi-review`** — Feedback from reviewers
-3. **Decompose into tasks** — Create beads tasks from this plan
+3. **Decompose into tasks** — Create Linear issues from this plan
 4. **Deepen further** — Another round on specific sections
