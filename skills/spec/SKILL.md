@@ -390,8 +390,8 @@ Set `decomposed = true`. Create issues in Linear:
 # Create or find the project
 save_project(name="<project name>", addTeams=[<team>])
 
-# Create issues within the project
-save_issue(title="<task>", team=<team>, project=<project>, priority=<1-4>, description="<description>")
+# Create issues within the project — QUALITY GATE applies (see below)
+save_issue(title="<task>", team=<team>, project=<project>, priority=<1-4>, description="<description>", labels=["<label>"])
 
 # Set parent-child relationships (parentId = containment)
 save_issue(id=<child-id>, parentId=<parent-id>)
@@ -399,9 +399,39 @@ save_issue(id=<child-id>, parentId=<parent-id>)
 # Wire execution-order dependencies between sibling tasks
 save_issue(id=<blocked-task>, blockedBy=[<blocking-task>])
 
+# Post-write validation: read back and check for formatting artifacts
+get_issue(id=<created-id>)
+# If description contains literal \n, \\n, XML tags, or trailing ") — rewrite it
+
 # Display created issues
 list_issues(project=<project>)
 ```
+
+#### Quality Gate for Issue Descriptions
+
+Every issue created during decomposition must meet this minimum bar:
+
+**Required description structure:**
+```markdown
+## Problem
+[What's wrong or what's needed — 2-3 sentences minimum]
+
+## Approach
+[How to fix/build it — specific enough for a worker to execute]
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+## Target Files
+- path/to/file.ext
+```
+
+**Required fields:** `title` (descriptive), `description` (meets structure above), `priority` (1-4), `labels` (at least one: Bug, Feature, Improvement, Refactor), `project`.
+
+**Formatting rules:** Write actual markdown with real line breaks. Never use `\n` escape sequences. Do not include XML tool syntax or string delimiters in content.
+
+**Post-write validation:** After each `save_issue`, call `get_issue(id=<id>)` and check the description for formatting artifacts (literal `\n`, `\\n`, XML tags like `</invoke>`, trailing `")`). If found, rewrite with corrected content.
 
 #### Task Board Rules
 

@@ -102,13 +102,11 @@ Before committing, review whether documentation needs updates:
 
 Update any documentation that is now stale or incomplete due to your changes. Keep updates minimal and focused - only document what changed.
 
-## 5. File Follow-up Issues
+## 5. Document Discovered Work
 
 If there's remaining work, TODOs, or improvements discovered during implementation:
 
-If Linear MCP is available: `save_issue(title="Follow-up: <description>", team=<team>, project=<project>)`
-
-Do this BEFORE closing the main task so nothing is lost.
+**Do NOT create Linear issues.** Document discovered work in the session summary's DISCOVERED WORK section (Step 14). The orchestrator will review these during reconciliation and propose them as issues for user approval.
 
 ## 6. Commit All Changes
 
@@ -426,9 +424,24 @@ Examples of divergences to document:
 - Deferred functionality to follow-up tasks
 - Discovered requirements that weren't in the spec
 
-FOLLOW-UP ISSUES CREATED
-------------------------
-<List any new issues created during this session (Linear or otherwise), or "None">
+DISCOVERED WORK
+---------------
+Work discovered during implementation that was NOT in the original task scope.
+Do NOT create Linear issues for these — document them here for orchestrator review.
+
+Format each item:
+
+**Item N: <brief title>**
+- Problem: <what's wrong or what's needed — 2-3 sentences>
+- Approach: <how to fix/build it — specific enough to execute>
+- Acceptance Criteria:
+  - [ ] Criterion 1
+  - [ ] Criterion 2
+- Priority: <1=Urgent, 2=High, 3=Medium, 4=Low>
+- Label: <Bug|Feature|Improvement|Refactor>
+- Target Files: <list of files this would touch>
+
+If no discovered work: "None"
 
 DEPENDENCIES UNBLOCKED
 ----------------------

@@ -129,7 +129,18 @@ Frontend changes detected in <task-id> — Playwright browser verification will 
 **If no summary (worker may have failed):**
 1. Check the worker's return value for error information
 2. Mark as failed
-3. If Linear MCP is available, create investigation task: `save_issue(title="Investigate: <task-id> failed", team=<team>, priority=1, project=<project>)`
+3. If Linear MCP is available, create investigation task with quality gate:
+   ```
+   save_issue(
+     title="Investigate: <task-id> failed",
+     team=<team>,
+     priority=1,
+     project=<project>,
+     labels=["Bug"],
+     description="## Problem\n<what the worker was attempting and how it failed>\n\n## Approach\nInvestigate root cause: check worker logs, git state, and error output.\n\n## Acceptance Criteria\n- [ ] Root cause identified\n- [ ] Fix applied or follow-up task created\n\n## Target Files\n- <files the failed task was working on>"
+   )
+   ```
+   After creation, run post-write validation: `get_issue(id=<created-id>)` — check for formatting artifacts and rewrite if needed.
 
 Update checkpoint: move task from `in_progress` to `completed` (or `failed`).
 
