@@ -1,6 +1,9 @@
 # Workflow Cheatsheet
 
 ```bash
+# Explore UI directions before committing to a plan
+/design-shotgun → /product-review DESIGN → /spec → /orient → /dispatch
+
 # Plan a new project (review runs automatically for all plans in Phase 2.5)
 /spec → /orient → /dispatch
 
@@ -13,6 +16,12 @@
 
 # Single session
 /orient → /start-task <id> → implement → /finish-task <id>
+
+# Optional release-confidence pass before closing risky work
+/qa → /finish-task <id>
+
+# Validate a performance claim with measured evidence
+/benchmark "pnpm test:bench"
 
 # Parallel sessions (worktree-isolated workers)
 /orient → /dispatch --count 3

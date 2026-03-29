@@ -6,6 +6,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 
 | Skill | Purpose | When to Use |
 |-------|---------|-------------|
+| `/design-shotgun` | Generate 3-5 intentionally different UI directions from a brief or plan | Before `/product-review DESIGN` or `/plan-design-review` when a UI direction is still fuzzy |
 | `/product-review` | Product-taste review with interrogation mode, assumption mapping (V/U/Vi/F), devil's advocate challenges, and alternatives analysis. EXPAND / HOLD / REDUCE / DESIGN modes | Before `/spec` for greenfield features, or standalone. Use DESIGN for UI-heavy features. |
 | `/spec` | Research, plan, optionally decompose into Linear issues | New idea, feature description, or goal |
 | `/spec --deepen` | Enhance plan with parallel research agents | Existing plan needs more depth |
@@ -29,6 +30,8 @@ All workflow capabilities are implemented as skills in `skills/`.
 
 | Skill | Purpose | Triggers |
 |-------|---------|----------|
+| `/qa` | Acceptance-first validation of readiness, regressions, and browser workflows | Before calling risky or UI-visible work ready |
+| `/benchmark` | Measured current-vs-baseline performance comparison for a repeatable command | When making or validating a performance claim |
 | `/multi-review` | Parallel code review with specialized agents | "thorough review", PR review, explicit |
 
 ## Utility
