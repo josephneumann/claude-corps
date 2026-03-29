@@ -140,7 +140,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 | `/milestone-review` | Iterative review-fix loop for accumulated branch changes |
 | `/humanizer` | Remove AI writing patterns, add natural voice |
 | `/verify` | Verification discipline — evidence before claims |
-| `/debug` | Systematic debugging methodology |
+| `/debug` | Systematic debugging with pattern matching, 5 Whys, evidence gathering, and structured reports |
 | `/writing-skills` | Skill authoring guidance (structure, tone, persuasion) |
 
 <details>
@@ -188,7 +188,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/verify`** &mdash; Centralized verification discipline cross-referenced by other skills. Contains the Iron Law (no claims without evidence), anti-rationalization table, red flags list, verification checklist, and anti-sycophancy guidance. Inspired by obra/superpowers.
 
-**`/debug`** &mdash; Four-phase systematic debugging: reproduce, trace root cause, test hypotheses, minimal fix. Includes three-strikes rule (3 failed fixes = wrong assumptions). Adapted from obra/superpowers.
+**`/debug`** &mdash; Systematic debugging with evidence gathering, known bug pattern matching (race conditions, nil propagation, state corruption, integration failures, config drift, stale cache, off-by-one), "5 Whys" root cause drilling, hypothesis testing, and structured debug reports (DONE / DONE_WITH_CONCERNS / BLOCKED). Three-strikes rule with interactive escalation. Regression test required before closing. Evolved from obra/superpowers with patterns from garrytan/gstack.
 
 **`/writing-skills`** &mdash; Meta-skill for authoring effective skills. Covers CSO (description design), word count targets, anti-rationalization patterns, tone guidance from the humanizer, and persuasion principles. Informed by obra/superpowers.
 
