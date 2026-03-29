@@ -63,6 +63,14 @@ When using Linear, reference these workspace details:
 
 Before ending an orchestrator session, always run `/reconcile-summary`.
 
+## Optional Specialist Skills
+
+Use these when the work calls for them:
+
+- `/design-shotgun` — explore 3-5 UI directions before locking a design approach
+- `/qa` — run acceptance-first validation before calling risky or UI-visible work ready
+- `/benchmark` — measure a repeatable command against a baseline before making performance claims
+
 ## Reference
 
 @docs/reference.md

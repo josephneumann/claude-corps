@@ -105,6 +105,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 | Skill | Purpose |
 |-------|---------|
+| `/design-shotgun` | Generate 3-5 intentionally different UI directions before committing to a design approach |
 | `/product-review` | Product-taste review with interrogation mode, assumption mapping, and devil's advocate challenges. EXPAND / HOLD / REDUCE / DESIGN modes |
 | `/spec` | Research, plan, optionally decompose into Linear issues |
 | `/spec --deepen` | Enhance an existing plan with parallel research |
@@ -130,6 +131,8 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 | Skill | Purpose |
 |-------|---------|
+| `/qa` | Acceptance-first validation for release readiness, regressions, and browser workflows |
+| `/benchmark` | Run a repeatable command on current branch vs baseline and report measured performance deltas |
 | `/multi-review` | Parallel code review with specialized agents |
 | `/milestone-review` | Iterative review-fix loop for accumulated branch changes |
 | `/humanizer` | Remove AI writing patterns, add natural voice |
@@ -141,6 +144,8 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 <summary><strong>Skill details</strong> (click to expand)</summary>
 
 ### Planning Skills
+
+**`/design-shotgun`** &mdash; Divergence before commitment for UI-heavy work. Generates 3-5 intentionally different design directions from a brief or plan, forcing real variation in hierarchy, interaction model, responsive posture, and differentiation. Ends with a recommended direction and a handoff block for `/product-review DESIGN` or `/plan-design-review`. Does not edit plans or write code.
 
 **`/product-review`** &mdash; Product-taste review that challenges scope and approach before committing engineering effort. Interrogation mode provides recommended answers for every question (grill-me style). Includes status quo analysis, assumption mapping across Value/Usability/Viability/Feasibility with risk prioritization, devil's advocate challenges (steel-man opposition, kill criteria), and alternatives analysis. Four modes: EXPAND (dream big), HOLD (maximum rigor), REDUCE (strip to essentials), DESIGN (UX-first &mdash; user journeys, interaction patterns, responsive strategy). Run before `/spec` or standalone.
 
@@ -163,6 +168,10 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 **`/summarize-session <id>`** &mdash; Read-only progress snapshot. Does not commit, push, or close anything.
 
 ### Quality Skills
+
+**`/qa`** &mdash; Acceptance-first release validation. Gathers acceptance criteria from a task, plan, or diff; runs deterministic checks; infers regression surface; and, for UI-visible changes, follows the shared browser testing protocol. Produces a final verdict of Pass, Blocked, or Needs manual verification with evidence for every claim.
+
+**`/benchmark`** &mdash; Measured performance workflow for repeatable commands. Runs the same command on the current branch and a baseline ref in a temporary worktree, captures multiple timed runs, reports median/min/max, and calls out variance so performance claims stay grounded in data.
 
 **`/multi-review`** &mdash; Selects 3-5 review agents based on change types, runs them in parallel, aggregates findings by severity (Critical/Important/Informational), and resolves every finding through a resolution ledger: auto-fixes without prompting, drops false positives with reasons, defers genuine human decisions for adjudication. Includes workflow-based browser testing for frontend PRs (cache clearing, diff-driven workflow inference, interactive verification). Maximum 3 review cycles with exit conditions.
 
