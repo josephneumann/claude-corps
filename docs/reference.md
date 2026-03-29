@@ -49,7 +49,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 | Skill | Purpose | When to Use |
 |-------|---------|-------------|
 | `/verify` | Evidence before claims, anti-sycophancy | Cross-referenced by other skills; invoke when making completion claims |
-| `/debug` | Systematic debugging methodology | Bug, test failure, unexpected behavior |
+| `/debug` | Systematic debugging: evidence gathering, known pattern matching, 5 Whys, hypothesis testing, structured debug report | Bug, test failure, unexpected behavior |
 | `/writing-skills` | Skill authoring guidance | Creating or revising a skill definition |
 
 ## Research Agents
