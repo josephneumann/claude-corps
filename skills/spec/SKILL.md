@@ -396,10 +396,27 @@ Set `decomposed = true`. Create issues in Linear:
 
 **Required: Distribute ALL actionable plan detail across issues.** After decomposition, every implementation detail, code path, test requirement, and failure mode in the plan must exist in at least one issue description. The plan should contain nothing a worker needs that isn't already in their assigned issue.
 
-**Pre-creation checklist (verify before writing any `save_issue`):**
-1. For each major plan section (Technical Approach, Architecture, Implementation Phases, Test Diagram, Failure Modes, Acceptance Criteria, What Already Exists), identify which issue(s) will carry that detail
-2. Confirm no actionable plan detail is orphaned (exists only in the plan with no corresponding issue)
-3. Confirm each issue is independently actionable — a worker who reads ONLY the issue description plus CLAUDE.md can implement, test, and ship it
+#### Coverage Matrix (MANDATORY — before calling any `save_issue`)
+
+Build a coverage matrix mapping every actionable plan section to an issue. Display it in the conversation. This is how you prove no detail is orphaned.
+
+**Step 1: Extract rows.** Read the plan. Create one row per actionable section or subsection. Actionable = contains implementation details, code paths, test requirements, failure modes, or acceptance criteria. Skip narrative-only sections. Split sections with multiple distinct concerns into separate rows.
+
+**Step 2: Fill the matrix.**
+
+| Plan Section | Key Details to Transfer | Assigned Issue | Est. Words |
+|---|---|---|---|
+| [section name] | [2-3 specifics: file paths, functions, behaviors] | [Issue N: title] | [~NNN] |
+
+**Rules:**
+- Every row MUST have an assigned issue. Empty = orphaned detail. Fix before proceeding.
+- "Key Details" MUST name specifics (file paths, function names, behaviors, test types). NOT summaries ("the auth stuff").
+- If a plan section is 200+ words of detail and Est. Words is <50, explain the compression.
+- Test Diagram entries and Failure Mode entries each get their own row.
+
+**Step 3: User confirmation.** Display the matrix. Use AskUserQuestion: "Coverage matrix maps N plan sections to M issues. Any gaps or reassignments?" Proceed only after user confirms.
+
+**Step 4: Post-creation verification.** After all issues are created, re-display the matrix with actual issue IDs replacing planned titles. Spot-check via `get_issue` that each row's Key Details appear in the assigned issue. Update any issue where Key Details are missing.
 
 **Dedup check first:** Before creating any issue, call `list_issues(project=<project>, query=<title>)` to check if an issue with this title already exists. Skip creation if found and log "Issue already exists: <title>".
 
@@ -506,18 +523,6 @@ Workers use this to validate their starting state before coding.]
 > **Target files:** Include a `## Target Files` section in each issue description listing the primary files the task will create or modify. This enables file-conflict detection during dispatch.
 
 > **No transitive edges:** If A depends on B and B depends on C, do NOT also add A→C. Only direct edges.
-
-#### Post-Decomposition Coverage Check
-
-After all issues are created, verify completeness before proceeding to Phase 4:
-
-1. **Plan coverage audit**: Walk each major plan section that contains actionable detail (Technical Approach, Architecture, Implementation Phases, Test Diagram, Failure Modes, Acceptance Criteria, What Already Exists). For each section, confirm at least one issue carries its content. If any actionable detail is orphaned — exists only in the plan with no corresponding issue — add it to the appropriate issue via `save_issue(id=<id>, description="<updated description>")`.
-
-2. **Standalone spot-check**: Read the description of the most complex issue in isolation (via `get_issue`). Ask: "Could a worker implement this task from this description plus CLAUDE.md alone, without reading the plan file or any other issue?" If the answer is no, enrich the issue until the answer is yes.
-
-3. **Cross-task dependency audit**: For each issue with `blockedBy` relations, verify the Dependencies section names what the blocking task provides and what state the worker can expect. For each issue that `blocks` others, verify it states what it produces for downstream tasks.
-
-4. **Plan file reference scan**: Skim each created issue's description. If any issue contains a reference to `docs/plans/`, a plan file path, or phrases like "see plan" or "as described in the plan" — remove the reference and replace it with the actual detail from the plan.
 
 **If user selects "No":**
 Set `decomposed = false`. Proceed to Phase 4.

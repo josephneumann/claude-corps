@@ -63,6 +63,10 @@ When using Linear, reference these workspace details:
 
 Before ending an orchestrator session, always run `/reconcile-summary`.
 
+## Planning
+
+- `/deep-plan` — full planning pipeline (product review, spec, deep reviews, multi-review on plan, decompose). Use as the default entry point for new features. Supports `--yes`, `--skip-reviews`, `--no-decompose`.
+
 ## Optional Specialist Skills
 
 Use these when the work calls for them:

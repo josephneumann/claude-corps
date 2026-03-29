@@ -1,16 +1,29 @@
 ---
 name: multi-review
-description: "This skill should be used when the user wants a comprehensive code review using multiple specialized reviewers in parallel. Invoked with /multi-review or when user asks for 'thorough review', 'full code review', or 'review from multiple perspectives'."
-allowed-tools: Read, Bash, Glob, Grep, Write, AskUserQuestion, Task, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_fill_form, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_console_messages, mcp__playwright__browser_close, mcp__playwright__browser_run_code, mcp__playwright__browser_navigate_back, mcp__playwright__browser_evaluate
+description: "This skill should be used when the user wants a comprehensive code review using multiple specialized reviewers in parallel. Invoked with /multi-review or when user asks for 'thorough review', 'full code review', or 'review from multiple perspectives'. Use --plan <path> to review an implementation plan pre-coding."
+allowed-tools: Read, Bash, Glob, Grep, Write, Edit, AskUserQuestion, Task, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_fill_form, mcp__playwright__browser_type, mcp__playwright__browser_press_key, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_console_messages, mcp__playwright__browser_close, mcp__playwright__browser_run_code, mcp__playwright__browser_navigate_back, mcp__playwright__browser_evaluate
 ---
 
 # Multi-Review: Parallel Specialized Code Review
 
 You are orchestrating a comprehensive code review using multiple specialized review agents in parallel.
 
+## Argument Parsing
+
+Check if `--plan <path>` was passed in arguments. If present:
+- Set `$PLAN_MODE = true` and `$PLAN_PATH = <path>`
+- Verify the plan file exists. If not, error: "Plan file not found: `<path>`"
+- In plan mode, you are reviewing an **implementation plan** (not code). The goal is to catch issues that would surface during code review if the plan is implemented as written.
+
+If `--plan` is not present: `$PLAN_MODE = false`. Proceed with normal code review mode.
+
 ## Workflow
 
 ### Step 1: Identify Changes
+
+**If `$PLAN_MODE`:** Read the plan file at `$PLAN_PATH`. The full plan text is the content under review. Skip to Step 2.
+
+**Otherwise (code mode):**
 
 Determine what code to review:
 
@@ -28,6 +41,8 @@ git diff HEAD~5 --name-only
 List the changed files and their types (e.g., `.py`, `.ts`, `.go`).
 
 ### Step 1.5: Load Review Configuration
+
+**If `$PLAN_MODE`:** Skip this step (review config applies to code, not plans).
 
 Check for a project-level review configuration:
 
@@ -50,6 +65,22 @@ If no review config exists, fall back to the keyword-based behavior in Step 2.
 
 ### Step 2: Analyze Change Types
 
+**If `$PLAN_MODE`:** Keyword-scan the plan content to determine which reviewers are relevant:
+
+| Plan Content Keywords | Relevant Reviewers |
+|---|---|
+| auth, permissions, user data, API keys, tokens, secrets | security-sentinel |
+| queries, caching, large datasets, real-time, N+1, batch, async | performance-oracle |
+| architecture, modules, services, boundaries, interfaces | architecture-strategist |
+| migrations, schema, data models, database, tables | data-integrity-guardian |
+| API endpoints, routes, rate limiting, CORS | api-security-reviewer |
+| UI components, user flows, forms, pages, modals | ux-reviewer |
+| user-facing features, actions, agent capabilities | agent-native-reviewer |
+
+Skip to Step 3 after scanning.
+
+**Otherwise (code mode):**
+
 Categorize the changes to select appropriate reviewers:
 
 | Change Type | Indicators | Relevant Reviewers |
@@ -66,6 +97,8 @@ Categorize the changes to select appropriate reviewers:
 | Frontend/UI | .tsx, .jsx, .vue, .svelte, .html, .css, templates | (browser testing — see Step 9) |
 
 ### Step 2.5: Framework Auto-Detection
+
+**If `$PLAN_MODE`:** Skip this step (framework detection is file-based, not applicable to plans).
 
 Map changed files to framework reviewers. A framework reviewer is activated when at least one changed file matches its patterns. No config required.
 
@@ -86,6 +119,16 @@ Map changed files to framework reviewers. A framework reviewer is activated when
 **Backward compatibility:** If a v1 config with a `frameworks` key is loaded, use it as a gate — only activate framework reviewers that are both listed in `frameworks` AND matched by changed files (preserves old behavior).
 
 ### Step 3: Select Reviewers
+
+**If `$PLAN_MODE`:**
+
+Always include:
+- `architecture-strategist` — structural gaps, boundary violations
+- `pattern-recognition-specialist` — anti-patterns in proposed approach
+
+Conditionally include based on keyword scan from Step 2. Select 3-7 reviewers total. Skip to Step 4.
+
+**Otherwise (code mode):**
 
 **Always include:**
 - `code-simplicity-reviewer` (YAGNI, complexity)
@@ -116,6 +159,8 @@ Always include `code-simplicity-reviewer` and `pattern-recognition-specialist` r
 
 ### Step 3b: Conditional Migration Reviewers
 
+**If `$PLAN_MODE`:** Skip this step (migration reviewers are triggered by file patterns, not plan content). If the plan mentions migrations, `data-integrity-guardian` is already included via Step 2 keyword scan.
+
 **Run migration-specific agents when the PR matches ANY of these criteria:**
 
 - Files matching `db/migrate/*`, `migrations/*`, or `alembic/versions/*`
@@ -138,6 +183,8 @@ cat ~/.claude/agents/review/<agent-name>.md
 
 ### Step 4.5: SAST Artifact Consumption (Hybrid Verification)
 
+**If `$PLAN_MODE`:** Skip this step (SAST results come from CI on code, not plans).
+
 Before launching reviewers, check if CI/CD SAST results are available:
 
 ```bash
@@ -154,6 +201,8 @@ Append the SARIF finding summaries (file, rule ID, message) to the security-sent
 If no SARIF artifacts exist (CI hasn't run, or the project doesn't use the security-checks workflow), skip this step silently.
 
 ### Step 5: Launch Parallel Reviews
+
+**If `$PLAN_MODE`:** Each reviewer prompt must include: "You are reviewing an implementation PLAN (not code). Identify issues that would surface during code review if this plan is implemented as written. Focus on: missing considerations, architectural risks, security gaps, performance concerns, and design oversights. Return findings as plan-level concerns (section references, missing elements) not code-level issues (line numbers)." Include the full plan text in each prompt.
 
 Use the Task tool to spawn parallel review agents.
 
@@ -278,6 +327,8 @@ Only surface findings with **confidence >= 80%**. Findings below 80% confidence 
 **Security exception:** All `security-sentinel` and `api-security-reviewer` findings appear in the main severity tables regardless of confidence level — never collapse them into "Low-Confidence Findings." Tag each with a `[SEC]` prefix in the Issue column to distinguish them from other reviewer findings. Security issues at any confidence level warrant human review.
 
 ### Step 8: Resolve Findings
+
+**If `$PLAN_MODE`:** Resolution means amending the plan document (via Edit tool on `$PLAN_PATH`), not fixing code. "Auto-fix" = update the plan section. "Verification" = re-read the plan section to confirm the gap exists. Skip code-specific steps (git blame, etc.).
 
 > **Verification discipline** (from `/verify`): Before proposing any fix, read the actual code at the file:line the reviewer flagged. Reviewers hallucinate. Confirm the issue exists, then fix. If it doesn't exist, drop it — don't implement phantom fixes.
 
@@ -419,6 +470,8 @@ INFORMATIONAL (acknowledged):
 ```
 
 ### Step 9: Browser Workflow Testing
+
+**If `$PLAN_MODE`:** Skip this step entirely. Browser testing applies to running code, not plans.
 
 **When the PR includes frontend/UI changes**, run workflow-based browser testing.
 
