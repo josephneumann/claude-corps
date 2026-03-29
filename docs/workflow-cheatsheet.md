@@ -1,6 +1,18 @@
 # Workflow Cheatsheet
 
 ```bash
+# Full planning pipeline (single entry point — product review, spec, deep reviews, decompose)
+/deep-plan "feature description"
+
+# Full pipeline, autonomous (auto-answers all checkpoints with defaults)
+/deep-plan "feature description" --yes
+
+# Full pipeline, skip deep reviews (rely on spec's Phase 2.5 inline reviews)
+/deep-plan "feature description" --skip-reviews
+
+# Review a plan with specialized agents before writing code
+/multi-review --plan docs/plans/<plan>.md
+
 # Explore UI directions before committing to a plan
 /design-shotgun → /product-review DESIGN → /spec → /orient → /dispatch
 

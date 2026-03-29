@@ -77,11 +77,13 @@ claude
 
 ```mermaid
 graph LR
-    PR["/product-review"] -.->|"optional"| A
-    A["/spec"] --> B["/spec --deepen"]
-    B -.->|"refine"| A
-    B --> D["/orient"]
-    A --> D
+    DP["/deep-plan"] --> PR["/product-review"]
+    PR --> A["/spec"]
+    A --> REV["Deep Reviews"]
+    REV --> MR["/multi-review --plan"]
+    MR --> DEC["Decompose"]
+    DEC --> D["/orient"]
+    A -.->|"or skip reviews"| D
     D --> E["/dispatch"]
     E --> F["Workers: /start-task"]
     F --> G["Workers: /finish-task"]
@@ -91,7 +93,7 @@ graph LR
 
 | Phase | What happens |
 |-------|-------------|
-| **Plan** | `/product-review` challenges scope and approach (optional &mdash; use DESIGN mode for UI features). `/spec` refines ideas via Q&A, researches the codebase with parallel agents, writes a plan to `docs/plans/`, and optionally decomposes into Linear issues. `/spec --deepen` adds depth with targeted parallel research. |
+| **Plan** | `/deep-plan` orchestrates the full pipeline: `/product-review` challenges scope, `/spec` writes the plan, deep eng/design reviews add rigor, `/multi-review --plan` catches issues pre-coding, then decomposes to Linear. Or run each skill individually. |
 | **Execute** | `/orient` surveys the project. `/dispatch` spawns workers &mdash; parallel (worktree-isolated, default) or sequential (`--sequential`, direct on branch). Each worker implements, tests, and writes a session summary. `/auto-run` does this in a loop until all tasks are done. |
 | **Review** | `/multi-review` runs parallel specialized code review. `/reconcile-summary` syncs worker output with the task board. |
 
@@ -105,6 +107,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 | Skill | Purpose |
 |-------|---------|
+| `/deep-plan` | Full planning pipeline with checkpoints: product review, optional design exploration, spec, deep eng/design reviews, plan-stage multi-review, decomposition. Single entry point. |
 | `/design-shotgun` | Generate 3-5 intentionally different UI directions before committing to a design approach |
 | `/product-review` | Product-taste review with interrogation mode, assumption mapping, and devil's advocate challenges. EXPAND / HOLD / REDUCE / DESIGN modes |
 | `/spec` | Research, plan, optionally decompose into Linear issues |
@@ -133,7 +136,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 |-------|---------|
 | `/qa` | Acceptance-first validation for release readiness, regressions, and browser workflows |
 | `/benchmark` | Run a repeatable command on current branch vs baseline and report measured performance deltas |
-| `/multi-review` | Parallel code review with specialized agents |
+| `/multi-review` | Parallel code review with specialized agents. `--plan <path>` mode reviews plans pre-implementation. |
 | `/milestone-review` | Iterative review-fix loop for accumulated branch changes |
 | `/humanizer` | Remove AI writing patterns, add natural voice |
 | `/verify` | Verification discipline — evidence before claims |
@@ -144,6 +147,8 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 <summary><strong>Skill details</strong> (click to expand)</summary>
 
 ### Planning Skills
+
+**`/deep-plan`** &mdash; Full planning pipeline that orchestrates all planning skills in sequence with user checkpoints between phases: product review (always), design exploration (opt-in), spec (always), deep engineering review (opt-out), deep design review (opt-out), plan-stage multi-review (opt-out), and Linear decomposition (opt-out). Supports `--yes` for autonomous operation, `--skip-reviews` to rely on spec's inline Phase 2.5, and `--no-decompose`. Use instead of manually chaining `/product-review`, `/spec`, and review skills.
 
 **`/design-shotgun`** &mdash; Divergence before commitment for UI-heavy work. Generates 3-5 intentionally different design directions from a brief or plan, forcing real variation in hierarchy, interaction model, responsive posture, and differentiation. Ends with a recommended direction and a handoff block for `/product-review DESIGN` or `/plan-design-review`. Does not edit plans or write code.
 
@@ -173,7 +178,7 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/benchmark`** &mdash; Measured performance workflow for repeatable commands. Runs the same command on the current branch and a baseline ref in a temporary worktree, captures multiple timed runs, reports median/min/max, and calls out variance so performance claims stay grounded in data.
 
-**`/multi-review`** &mdash; Selects 3-5 review agents based on change types, runs them in parallel, aggregates findings by severity (Critical/Important/Informational), and resolves every finding through a resolution ledger: auto-fixes without prompting, drops false positives with reasons, defers genuine human decisions for adjudication. Includes workflow-based browser testing for frontend PRs (cache clearing, diff-driven workflow inference, interactive verification). Maximum 3 review cycles with exit conditions.
+**`/multi-review`** &mdash; Selects 3-5 review agents based on change types, runs them in parallel, aggregates findings by severity (Critical/Important/Informational), and resolves every finding through a resolution ledger: auto-fixes without prompting, drops false positives with reasons, defers genuine human decisions for adjudication. Includes workflow-based browser testing for frontend PRs (cache clearing, diff-driven workflow inference, interactive verification). Maximum 3 review cycles with exit conditions. **Plan mode** (`--plan <path>`): reviews an implementation plan pre-coding &mdash; keyword-scans the plan to select relevant reviewers (security, performance, architecture, etc.), prompts them to identify issues that would surface during code review, and resolves findings by amending the plan.
 
 **`/milestone-review`** &mdash; Autonomous iterative review-fix loop for accumulated branch changes. Unlike `/multi-review` (interactive), milestone-review fixes all verified findings itself &mdash; refactoring, multi-file changes, pattern fixes &mdash; repeating until the branch is clean or max iterations are reached. Used automatically by `/auto-run` after tasks complete, or run standalone on any branch.
 
@@ -408,14 +413,21 @@ git checkout milestone/m4
 ### Full Planning Pipeline
 
 ```bash
-/spec "real-time price alerts for crypto"
-/spec --deepen   # optional: enhance with parallel research
+# Single entry point — runs product review, spec, deep reviews, decomposition
+/deep-plan "real-time price alerts for crypto"
 /orient
 /dispatch
 
-# For UI-heavy features
+# Autonomous (auto-answers all checkpoints)
+/deep-plan "dashboard redesign" --yes
+
+# Light mode (skip deep reviews, rely on spec's Phase 2.5)
+/deep-plan "new feature" --skip-reviews
+
+# Or manually chain individual planning skills
 /product-review DESIGN    # map user journeys and interaction patterns first
 /spec "dashboard redesign"
+/multi-review --plan docs/plans/<plan>.md   # review plan before coding
 /orient
 /dispatch
 ```
@@ -446,6 +458,7 @@ All skills work without a task tracker. Here's what changes:
 
 | Skill | Without Linear | With Linear |
 |-------|---------------|-------------|
+| `/deep-plan` | Full pipeline, skips decomposition phase | Full pipeline including Linear decomposition |
 | `/spec` | Writes plan file to `docs/plans/` | Writes plan file + creates Linear issues with dependencies |
 | `/orient` | Reads git state, plan files, code health | Reads git state + Linear project board with full task graph |
 | `/dispatch` | N/A (run tasks manually from plan) | Spawns workers from ready issues, delegates via Linear |
