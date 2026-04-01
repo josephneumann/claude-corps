@@ -80,7 +80,13 @@ Replicate multi-review's reviewer selection logic (Steps 1.5–3 of `/multi-revi
 
 5. Apply `reviewers.exclude` / `reviewers.include` overrides from review config if present
 
-Select 3–7 reviewers total.
+6. **Codex integration (config-only):** If review.json contains `"codex": { "enabled": true }`:
+   - Set `$CODEX_ENABLED = true`
+   - Set `$CODEX_ADVERSARIAL = true` if `"codex": { "adversarial": true }`
+   - Verify codex CLI: `which codex && codex --version`
+   - If missing, log: "Codex CLI not found — skipping codex review. Install: `npm install -g @openai/codex`" and set `$CODEX_ENABLED = false`
+
+Select 3–7 reviewers total (codex is additional, does not count toward this limit).
 
 ### Step 3.3: Read Agent Definitions
 
@@ -110,6 +116,42 @@ Use the Task tool to spawn parallel review agents. Each reviewer gets:
 ```
 
 **Model selection:** Follow multi-review's tier-based logic. Default to Sonnet. Use Opus for `security-sentinel` and `architecture-strategist` when risk tier is critical.
+
+**Codex reviewer (if `$CODEX_ENABLED`):**
+
+Launch an additional Agent in parallel with the Claude reviewers above:
+
+```
+N+1. Agent: codex-reviewer
+   - Subagent type: general-purpose
+   - Model: sonnet
+   - Prompt:
+     You are a review output normalizer. Your job:
+     1. Run codex to perform a code review via Bash (timeout: 300000ms):
+        codex review --base <base-branch> "<review prompt>"
+     2. Capture the stdout output.
+     3. Parse each finding and normalize into this format:
+
+        ## Codex Reviewer Findings
+
+        ### Critical Issues
+        - [file:line] [CODEX] Issue description - Confidence: X%
+
+        ### Important Issues
+        - [file:line] [CODEX] Issue description - Confidence: X%
+
+        ### Suggestions
+        - [file:line] [CODEX] Issue description - Confidence: X%
+
+     4. Map codex severity: Critical/Blocker/Bug/Security → Critical,
+        Warning/Should-fix/Improvement → Important, Suggestion/Nit/Style → Suggestions
+     5. If no confidence given: Critical 90%, Important 80%, Suggestions 70%
+     6. If no file:line references, use file path only.
+     7. Return ONLY the normalized findings.
+```
+
+If `$CODEX_ADVERSARIAL`, use review prompt: "Perform an adversarial review. Challenge design decisions, surface hidden assumptions, question tradeoffs, and pressure-test the approach."
+Otherwise: "Review for security vulnerabilities, correctness bugs, performance issues, and code quality. Format findings by severity."
 
 ### Step 3.5b: Browser Workflow Testing (Parallel with Code Reviews)
 

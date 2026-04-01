@@ -9,5 +9,9 @@
   "reviewers": {
     "exclude": [],
     "include": ["security-sentinel"]
+  },
+  "codex": {
+    "enabled": false,
+    "adversarial": false
   }
 }

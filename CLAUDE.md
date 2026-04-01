@@ -75,6 +75,33 @@ Use these when the work calls for them:
 - `/qa` — run acceptance-first validation before calling risky or UI-visible work ready
 - `/benchmark` — measure a repeatable command against a baseline before making performance claims
 
+## Using Codex (OpenAI)
+
+When the user says "use codex" or asks you to delegate a task to Codex, use the `codex` CLI:
+
+**Code review:**
+```bash
+codex review --base <branch> "<custom instructions>"
+```
+
+**Arbitrary task (non-interactive, sandboxed):**
+```bash
+codex exec --full-auto "<task description>"
+```
+
+**With output capture:**
+```bash
+codex exec --full-auto -o /tmp/codex-result.md "<task description>"
+```
+
+**Guidelines:**
+- Use `--full-auto` for exec tasks (workspace-write sandbox, auto-approves commands)
+- Use `--ephemeral` if you don't need session persistence
+- Codex output goes to stdout — capture and present to the user
+- For long-running tasks, use `-o <file>` to write the final result to a file
+- Codex operates in its own sandbox — it cannot see or modify Claude Code state
+- Default model is configured in `~/.codex/config.toml`. Override with `-c model="o3"`
+
 ## Reference
 
 @docs/reference.md
