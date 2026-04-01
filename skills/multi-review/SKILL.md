@@ -15,6 +15,9 @@ Check if `--plan <path>` was passed in arguments. If present:
 - Verify the plan file exists. If not, error: "Plan file not found: `<path>`"
 - In plan mode, you are reviewing an **implementation plan** (not code). The goal is to catch issues that would surface during code review if the plan is implemented as written.
 
+Check if `--codex` was passed. If present: `$CODEX_ENABLED = true`.
+Check if `--codex-adversarial` was passed. If present: `$CODEX_ENABLED = true`, `$CODEX_ADVERSARIAL = true`.
+
 If `--plan` is not present: `$PLAN_MODE = false`. Proceed with normal code review mode.
 
 ## Workflow
@@ -54,6 +57,11 @@ cat .claude/review.json 2>/dev/null || cat .claude/risk-tiers.json 2>/dev/null |
 If found, parse the configuration:
 - `tiers`: Maps risk levels (critical, high, medium, low) to file glob patterns
 - `reviewers` (v2): Optional object with `exclude` and `include` arrays for reviewer control
+
+**Codex config:** If the config contains a `codex` key, parse it:
+- `"codex": { "enabled": true }` → set `$CODEX_ENABLED = true` (unless already set by `--codex` flag)
+- `"codex": { "adversarial": true }` → set `$CODEX_ADVERSARIAL = true` (unless already set by `--codex-adversarial` flag)
+- CLI flags override config values.
 
 **Backward compatibility:** If the config contains a v1 `frameworks` key, honor it as a gate for framework reviewers and log a deprecation note: "Deprecation: `frameworks` array in risk-tiers.json is deprecated. Framework reviewers now auto-detect. Migrate to review.json v2 schema."
 
@@ -173,6 +181,23 @@ Always include `code-simplicity-reviewer` and `pattern-recognition-specialist` r
 - `data-integrity-guardian`: Transaction boundaries, reversibility, constraint safety, ACID compliance, regulatory considerations (GDPR/CCPA)
 - `data-migration-expert`: Verifies hard-coded mappings match production reality (prevents swapped IDs), checks for orphaned associations, validates dual-write patterns, provides SQL verification queries
 
+### Step 3c: Codex Prerequisites Check
+
+**If `$CODEX_ENABLED` and not `$PLAN_MODE`:**
+
+Verify the codex CLI is available:
+
+```bash
+which codex && codex --version
+```
+
+If the command fails:
+- Log: "Codex CLI not found — skipping codex review. Install: `npm install -g @openai/codex`"
+- Set `$CODEX_ENABLED = false`
+- Continue with remaining reviewers
+
+**If `$PLAN_MODE`:** Set `$CODEX_ENABLED = false` — `codex review` reviews code diffs, not plan documents.
+
 ### Step 4: Read Agent Definitions
 
 For each selected reviewer, read the agent definition:
@@ -230,6 +255,49 @@ Launch these agents in parallel:
    ...
 ```
 
+**Codex reviewer (if `$CODEX_ENABLED`):**
+
+Launch an additional Agent in parallel with the Claude reviewers above:
+
+```
+N+1. Agent: codex-reviewer
+   - Subagent type: general-purpose
+   - Model: sonnet
+   - Prompt:
+     You are a review output normalizer. Your job:
+     1. Run codex to perform a code review via Bash (timeout: 300000ms):
+        codex review --base <base-branch> "<review prompt>"
+        (use --uncommitted if reviewing staged/unstaged changes with no branch comparison)
+     2. Capture the stdout output.
+     3. Parse each finding and normalize into this exact format:
+
+        ## Codex Reviewer Findings
+
+        ### Critical Issues
+        - [file:line] [CODEX] Issue description - Confidence: X%
+
+        ### Important Issues
+        - [file:line] [CODEX] Issue description - Confidence: X%
+
+        ### Suggestions
+        - [file:line] [CODEX] Issue description - Confidence: X%
+
+     4. Map codex severity to the standard format:
+        - Critical/Blocker/Bug/Security → Critical Issues
+        - Warning/Should-fix/Improvement → Important Issues
+        - Suggestion/Nit/Style/Nice-to-have → Suggestions
+     5. If codex does not provide confidence percentages, assign:
+        Critical: 90%, Important: 80%, Suggestions: 70%
+     6. If codex does not provide file:line references, use file path only.
+     7. Return ONLY the normalized findings.
+```
+
+If `$CODEX_ADVERSARIAL`, use this review prompt:
+> "Perform an adversarial review. Challenge design decisions, surface hidden assumptions, question tradeoffs, and pressure-test the approach. Don't just find bugs — challenge whether this is the right solution."
+
+Otherwise use a standard review prompt:
+> "Review for security vulnerabilities, correctness bugs, performance issues, and code quality. Format findings by severity."
+
 Each agent should return findings in this format:
 ```markdown
 ## [Agent Name] Findings
@@ -277,6 +345,7 @@ Combine results from all reviewers, sorted by severity:
 
 ### Reviewers
 - [x] reviewer-name
+- [x] codex-reviewer (if enabled)
 ...
 
 ### CRITICAL Findings (blocking — require action)
@@ -568,6 +637,15 @@ If no frontend changes detected, skip this step.
 **Focus**: Core Web Vitals (LCP, CLS, INP), bundle size, request waterfalls, rendering efficiency, image optimization
 **Auto-detected when**: Changed files match `*.tsx`, `*.jsx`, `*.css`, `next.config.*`, `package.json`
 **Path**: `agents/review/frontend-performance-reviewer.md`
+
+### External Reviewers (Optional, CLI-based)
+
+#### codex-reviewer
+**Focus**: Second-opinion code review via OpenAI Codex CLI. Provides a review from a different AI model.
+**Requires**: `codex` CLI installed (`npm install -g @openai/codex`), OpenAI authentication (`codex login`)
+**Enable**: `--codex` flag or `"codex": { "enabled": true }` in review.json
+**Adversarial mode**: `--codex-adversarial` flag or `"codex": { "adversarial": true }` in review.json
+**Note**: This reviewer runs the codex CLI via Bash, not a Claude agent definition. Output is normalized to the standard findings format by a wrapper agent. Skipped in plan mode.
 
 ## Important Notes
 

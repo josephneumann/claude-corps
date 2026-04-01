@@ -23,7 +23,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 | `/finish-task <id> [--direct]` | Tests, commit, PR, cleanup, close. `--direct` skips PR for sequential tasks. | Task complete |
 | `/dispatch [--sequential]` | Spawn workers. Default: parallel (worktree-isolated). `--sequential`: one at a time on current branch. | Multiple ready tasks |
 | `/auto-run [--sequential]` | Autonomous dispatch-reconcile loop. `--sequential` for dependent task chains. | Batch processing, overnight runs |
-| `/milestone-review` | Iterative review-fix loop for branch changes | After milestone tasks complete, or manually |
+| `/milestone-review` | Iterative review-fix loop for branch changes. Supports Codex via review.json `codex` config. | After milestone tasks complete, or manually |
 | `/summarize-session <id>` | Progress summary (read-only) | Mid-session checkpoint |
 | `/reconcile-summary` | Sync task board with implementation reality | After worker completes |
 
@@ -33,7 +33,7 @@ All workflow capabilities are implemented as skills in `skills/`.
 |-------|---------|----------|
 | `/qa` | Acceptance-first validation of readiness, regressions, and browser workflows | Before calling risky or UI-visible work ready |
 | `/benchmark` | Measured current-vs-baseline performance comparison for a repeatable command | When making or validating a performance claim |
-| `/multi-review` | Parallel code review with specialized agents. `--plan <path>` mode reviews plans pre-implementation. | "thorough review", PR review, explicit, or plan review with `--plan` |
+| `/multi-review` | Parallel code review with specialized agents. `--plan <path>` mode reviews plans pre-implementation. `--codex` / `--codex-adversarial` adds Codex second-opinion. | "thorough review", PR review, explicit, or plan review with `--plan` |
 
 ## Utility
 
@@ -65,10 +65,10 @@ Available in `/orient` (Phase 1.5) and `/start-task` (Step 5.5) for complex task
 
 ## Review Agents
 
-**Review** (`/multi-review`): `code-simplicity-reviewer`, `security-sentinel`, `api-security-reviewer`, `performance-oracle`, `pattern-recognition-specialist`, `architecture-strategist`, `agent-native-reviewer`, `data-integrity-guardian`, `data-migration-expert`. Framework-specific (`nextjs-reviewer`, `tailwind-reviewer`, `python-backend-reviewer`, `ux-reviewer`, `frontend-performance-reviewer`) auto-detect from changed files.
+**Review** (`/multi-review`): `code-simplicity-reviewer`, `security-sentinel`, `api-security-reviewer`, `performance-oracle`, `pattern-recognition-specialist`, `architecture-strategist`, `agent-native-reviewer`, `data-integrity-guardian`, `data-migration-expert`. Framework-specific (`nextjs-reviewer`, `tailwind-reviewer`, `python-backend-reviewer`, `ux-reviewer`, `frontend-performance-reviewer`) auto-detect from changed files. **External** (opt-in): `codex-reviewer` via OpenAI Codex CLI (`--codex` flag or review.json config).
 
 **Workflow**: `spec-flow-analyzer` — analyze specs for dependencies, gaps, feasibility.
 
 ## Project Configuration
 
-Optional `.claude/review.json` configures risk tiers and reviewer overrides for `/multi-review` and `/dispatch`. See `docs/examples/review-fullstack.json` for examples.
+Optional `.claude/review.json` configures risk tiers, reviewer overrides, and Codex integration for `/multi-review`, `/milestone-review`, and `/dispatch`. See `docs/examples/review-fullstack.json` for examples.

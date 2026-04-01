@@ -136,8 +136,8 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 |-------|---------|
 | `/qa` | Acceptance-first validation for release readiness, regressions, and browser workflows |
 | `/benchmark` | Run a repeatable command on current branch vs baseline and report measured performance deltas |
-| `/multi-review` | Parallel code review with specialized agents. `--plan <path>` mode reviews plans pre-implementation. |
-| `/milestone-review` | Iterative review-fix loop for accumulated branch changes |
+| `/multi-review` | Parallel code review with specialized agents. `--plan <path>` reviews plans. `--codex` adds Codex second-opinion. |
+| `/milestone-review` | Iterative review-fix loop for accumulated branch changes. Supports Codex via review.json config. |
 | `/humanizer` | Remove AI writing patterns, add natural voice |
 | `/verify` | Verification discipline — evidence before claims |
 | `/debug` | Systematic debugging with pattern matching, 5 Whys, evidence gathering, and structured reports |
@@ -178,9 +178,9 @@ All workflow capabilities are implemented as slash commands in `skills/`.
 
 **`/benchmark`** &mdash; Measured performance workflow for repeatable commands. Runs the same command on the current branch and a baseline ref in a temporary worktree, captures multiple timed runs, reports median/min/max, and calls out variance so performance claims stay grounded in data.
 
-**`/multi-review`** &mdash; Selects 3-5 review agents based on change types, runs them in parallel, aggregates findings by severity (Critical/Important/Informational), and resolves every finding through a resolution ledger: auto-fixes without prompting, drops false positives with reasons, defers genuine human decisions for adjudication. Includes workflow-based browser testing for frontend PRs (cache clearing, diff-driven workflow inference, interactive verification). Maximum 3 review cycles with exit conditions. **Plan mode** (`--plan <path>`): reviews an implementation plan pre-coding &mdash; keyword-scans the plan to select relevant reviewers (security, performance, architecture, etc.), prompts them to identify issues that would surface during code review, and resolves findings by amending the plan.
+**`/multi-review`** &mdash; Selects 3-5 review agents based on change types, runs them in parallel, aggregates findings by severity (Critical/Important/Informational), and resolves every finding through a resolution ledger: auto-fixes without prompting, drops false positives with reasons, defers genuine human decisions for adjudication. Includes workflow-based browser testing for frontend PRs (cache clearing, diff-driven workflow inference, interactive verification). Maximum 3 review cycles with exit conditions. **Codex integration** (`--codex` / `--codex-adversarial`): optionally includes an OpenAI Codex review running in parallel with Claude agents, normalized into the same findings pipeline. **Plan mode** (`--plan <path>`): reviews an implementation plan pre-coding &mdash; keyword-scans the plan to select relevant reviewers (security, performance, architecture, etc.), prompts them to identify issues that would surface during code review, and resolves findings by amending the plan.
 
-**`/milestone-review`** &mdash; Autonomous iterative review-fix loop for accumulated branch changes. Unlike `/multi-review` (interactive), milestone-review fixes all verified findings itself &mdash; refactoring, multi-file changes, pattern fixes &mdash; repeating until the branch is clean or max iterations are reached. Used automatically by `/auto-run` after tasks complete, or run standalone on any branch.
+**`/milestone-review`** &mdash; Autonomous iterative review-fix loop for accumulated branch changes. Supports Codex second-opinion reviews when enabled in review.json (`"codex": {"enabled": true}`). Unlike `/multi-review` (interactive), milestone-review fixes all verified findings itself &mdash; refactoring, multi-file changes, pattern fixes &mdash; repeating until the branch is clean or max iterations are reached. Used automatically by `/auto-run` after tasks complete, or run standalone on any branch.
 
 **`/humanizer`** &mdash; Writing editor that identifies and removes AI writing patterns (significance inflation, sycophantic tone, filler phrases, em dash overuse, etc.) to make text sound natural and human. Based on [Wikipedia's Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing). Outputs a draft rewrite, self-audit for remaining tells, and final revision.
 
@@ -268,6 +268,8 @@ Deployed by `/multi-review` and `/milestone-review` for parallel specialized rev
 | `python-backend-reviewer` | FastAPI, SQLAlchemy, async, Alembic, pytest |
 | `ux-reviewer` | Interaction flows, state completeness, form UX, cognitive load |
 | `frontend-performance-reviewer` | Core Web Vitals, bundle size, rendering, waterfalls |
+| **External (optional)** | |
+| `codex-reviewer` | Second-opinion review via OpenAI Codex CLI. Opt-in via `--codex` flag or review.json config |
 
 > **Note:** Framework-specific reviewers (`nextjs`, `tailwind`, `python-backend`, `api-security`, `ux`, `frontend-perf`) auto-detect from changed files. Use `reviewers.exclude` in `.claude/review.json` to suppress. See [Setting Up a New Project](#setting-up-a-new-project).
 
@@ -511,7 +513,7 @@ Yes. All skills degrade gracefully. `/spec` produces plan files. `/orient` surve
 
 ### What is the review config?
 
-The review config (`.claude/review.json`) lets you configure per-project file sensitivity levels and reviewer overrides. It drives three behaviors: (1) `/multi-review` selects more reviewers for higher-risk files, (2) `/dispatch` uses plan-mode for critical/high-risk tasks, and (3) model selection routes critical/high tasks to Opus and medium/low to Sonnet. Framework-specific reviewers auto-detect from changed files — use `reviewers.exclude` to suppress false positives and `reviewers.include` to force always-on reviewers. Without a config file, skills fall back to keyword-based detection.
+The review config (`.claude/review.json`) lets you configure per-project file sensitivity levels and reviewer overrides. It drives three behaviors: (1) `/multi-review` selects more reviewers for higher-risk files, (2) `/dispatch` uses plan-mode for critical/high-risk tasks, and (3) model selection routes critical/high tasks to Opus and medium/low to Sonnet. Framework-specific reviewers auto-detect from changed files — use `reviewers.exclude` to suppress false positives and `reviewers.include` to force always-on reviewers. Add `"codex": {"enabled": true}` to include Codex second-opinion reviews. Without a config file, skills fall back to keyword-based detection.
 
 ### How does smart model selection work?
 
@@ -537,6 +539,7 @@ Use `--sequential` when tasks depend on each other (Phase 1 must complete before
 |------|-------------|--------------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Anthropic's agentic coding CLI | **Required** &mdash; claude-corps extends it |
 | [Linear](https://linear.app) + [MCP](https://mcp.linear.app/mcp) | Task tracking and project management | **Optional** &mdash; skills use Linear MCP for task tracking when connected |
+| [OpenAI Codex](https://github.com/openai/codex) | AI coding agent with code review | **Optional** &mdash; second-opinion reviewer in `/multi-review` and `/milestone-review` |
 | [Claude Squad](https://github.com/smtg-ai/claude-squad) | Manage multiple terminal Claude agents | Alternative approach to multi-agent |
 | [Aider](https://github.com/Aider-AI/aider) | AI pair programming in your terminal | Different paradigm (pair vs team) |
 
@@ -568,6 +571,15 @@ Use `--sequential` when tasks depend on each other (Phase 1 must complete before
   The `--isolated` flag starts each session with an ephemeral in-memory profile, preventing stale cache/cookies from prior sessions. Without it, Playwright persists state to disk at `~/Library/Caches/ms-playwright/`.
 
   Used by `/finish-task`, `/multi-review`, and `/milestone-review` for workflow-based browser testing: cache clearing, diff-driven workflow inference, interactive testing (click, fill, type), persistence verification, and responsive checks. See `docs/browser-testing-protocol.md` for the full protocol.
+
+### For Codex Integration (Optional)
+
+- **[OpenAI Codex CLI](https://github.com/openai/codex)** &mdash; Second-opinion code review from a different AI model. Install and authenticate:
+  ```bash
+  npm install -g @openai/codex
+  codex login
+  ```
+  Used by `/multi-review --codex` and `/milestone-review` (when enabled in review.json) to run Codex reviews in parallel with Claude review agents. Requires a ChatGPT subscription or OpenAI API key.
 
 ### For Unattended Auto-Run
 
